@@ -1,0 +1,53 @@
+:root {
+    --background-color: #eee;
+    --page-color: #fff;
+    --accent-color: #aaa;
+    --identity-primary: #f06161;
+    --identity-secondary: #f88888;
+    --identity-accent: #601a1a;
+}
+
+body {
+    background-color: var(--background-color);
+    height: 100%;
+}
+
+.screen-half {
+    background-color: var(--page-color);
+    height: 100%;
+    border-radius: 10px;
+    border: 1px solid;
+    border-color: var(--accent-color);
+    padding: 20px;
+}
+
+.logging-box {
+    width: 100%;
+    border-radius: 10px;
+    border: 1px solid;
+    border-color: var(--accent-color);
+    background-color: var(--background-color);
+    resize: none;
+}
+
+.form-switch .form-check-input {
+    transform: scale(1.5);
+    margin-right: 0.75rem;
+}
+
+.form-switch .form-check-label {
+    font-size: 1.25rem;
+}
+
+.custom-navbar {
+    background-color: var(--identity-primary);
+}
+
+.nav-link, .navbar-brand {
+    background-color: var(--identity-secondary);
+    border-radius: 10px;
+    border: 1px solid;
+    border-color: var(--identity-accent);
+    padding: 5px;
+    margin: 1px;
+}

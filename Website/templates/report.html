@@ -14,7 +14,7 @@
     <!-- Navbar -->
     <nav class="navbar navbar-expand-lg navbar-light custom-navbar">
       <div class="container-fluid">
-        <a class="navbar-brand" href="#">Focus Fairy</a>
+        <img class="navbar-brand" href="#" src="../images/icon.png" alt="Icon" height="50px">
 
         <button class="navbar-toggler" type="button"
           data-bs-toggle="collapse"
@@ -27,8 +27,8 @@
 
       <div class="collapse navbar-collapse" id="navbarNav">
         <div class="navbar-nav ms-auto">
-          <a class="nav-link active" href="#">Home</a>
-          <a class="nav-link" href="#">Report</a>
+          <a class="nav-link" href="#">Home</a>
+          <a class="nav-link active" href="#">Report</a>
         </div>
       </div>
     </nav>
@@ -40,26 +40,19 @@
         <!-- Left side -->
         <div class="col-md-6">
           <div class="screen-half">
-            <h1>Status</h1>
+            <h1>Statistics</h1>
 
-            <!-- Total system on / off -->
+            <!-- Average Focus -->
             <div class="form-check form-switch">
-              <input class="form-check-input" type="checkbox" role="switch" id="systemToggle">
-              <label class="form-check-label" for="systemToggle">System Enabled</label>
+                <label for="avg_focus">Average Focus</label>
+                <input type="number" class="form-control" id="avg_focus" placeholder="Average Focus">
             </div>
             <br>
 
-            <!-- Camera Access Switch -->
+            <!-- Average Focus -->
             <div class="form-check form-switch">
-              <input class="form-check-input" type="checkbox" role="switch" id="cameraToggle">
-              <label class="form-check-label" for="cameraToggle">Camera Access</label>
-            </div>
-            <br>
-
-            <!-- Screen Access Switch -->
-            <div class="form-check form-switch">
-              <input class="form-check-input" type="checkbox" role="switch" id="screenToggle">
-              <label class="form-check-label" for="screenToggle">Screen Access</label>
+                <label for="avg_posture">Average Posture</label>
+                <input type="number" class="form-control" id="avg_posture" placeholder="Average Posture">
             </div>
             <br>
 
@@ -72,7 +65,7 @@
         <!-- Right side -->
         <div class="col-md-6">
           <div class="screen-half">
-            <h1>Profile</h1>
+            <h1>Work Score</h1>
             <form>
               <div class="form-group">
                 <label for="name">Name</label>
