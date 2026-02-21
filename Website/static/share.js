@@ -1,8 +1,13 @@
+let intervalId = null;
+let stream = null;
+
 async function share() {
-  const stream =
+  const mediaStream =
     await navigator.mediaDevices.getDisplayMedia({
       video: true
     });
+
+  stream = mediaStream;
 
   const video = document.createElement("video");
   video.srcObject = stream;
@@ -11,7 +16,7 @@ async function share() {
   const canvas = document.createElement("canvas");
   const ctx = canvas.getContext("2d");
 
-  setInterval(async () => {
+  intervalId = setInterval(async () => {
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
 
@@ -29,3 +34,30 @@ async function share() {
 
   }, 3000);
 }
+
+// Get the input element and the status text element
+const toggleInput = document.getElementById('screenToggle');
+
+function turnOffFunction() {
+  // Stop the interval
+  if (intervalId !== null) {
+    clearInterval(intervalId);
+    intervalId = null;
+  }
+
+  // Stop all tracks in the stream
+  if (stream !== null) {
+    stream.getTracks().forEach(track => track.stop());
+    stream = null;
+  }
+}
+
+// Add an event listener for the 'change' event
+toggleInput.addEventListener('change', () => {
+  if (toggleInput.checked) {
+    share()
+  } else {
+    // Optional: Run this function when the toggle is 'off' (unchecked)
+    turnOffFunction();
+  }
+});
