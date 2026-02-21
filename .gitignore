@@ -9,3 +9,6 @@ frame.jpg
 text.txt
 *.csv
 models
+.env
+*.png
+*.task
