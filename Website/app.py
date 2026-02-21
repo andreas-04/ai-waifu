@@ -6,6 +6,9 @@ from transformers import pipeline
 
 app = Flask(__name__)
 
+# Ensure models directory exists
+os.makedirs("./models", exist_ok=True)
+
 # create an application init to download the classifier
 if not os.path.exists("./models/productivity_classifier"):
     print("File not found. Downloading classifier")
