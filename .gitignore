@@ -3,3 +3,4 @@
 *.pt
 */__pycache__/
 *.cpyt
+*.env
