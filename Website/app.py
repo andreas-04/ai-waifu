@@ -365,7 +365,6 @@ def upload():
         recently_unproductive = False
         
     if recently_unproductive:
-        print("⚠️  User has been recently unproductive. Consider sending a nudge or reminder.")
         notifier.notify(
             module="focus",
             level="warning",
