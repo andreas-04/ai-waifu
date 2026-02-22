@@ -1,0 +1,164 @@
+<!-- templates/home.html -->
+{% extends "base.html" %}
+
+{% block title %}Settings | Focus Fairy{% endblock %}
+
+{% block content %}
+
+  <!-- The content of the page -->
+    <div class="container-fluid mt-4">
+      <div class="row">
+
+        <!-- Left side -->
+        <div class="col-md-6">
+          <div class="screen-half">
+            <h1>Settings</h1>
+            <form method="POST" id="settings_form" action="{{ url_for('update_settings') }}">
+
+              <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox"
+                      role="switch"
+                      id="systemToggle"
+                      name="system_enabled"
+                      value="1">
+                <label class="form-check-label" for="systemToggle">
+                  System Enabled
+                </label>
+              </div>
+
+              <!--<div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox"
+                      role="switch"
+                      id="cameraToggle"
+                      name="camera_enabled"
+                      value="1"
+                      {% if user_settings.camera_enabled %}checked{% endif %}>
+                <label class="form-check-label" for="cameraToggle">
+                  Camera Access
+                </label>
+              </div>
+
+              <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox"
+                      role="switch"
+                      id="screenToggle"
+                      name="screen_enabled"
+                      value="1"
+                      {% if user_settings.screen_enabled %}checked{% endif %}>
+                <label class="form-check-label" for="screenToggle">
+                  Screen Access
+                </label>
+              </div>-->
+
+              <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox"
+                      role="switch"
+                      id="productivityToggle"
+                      name="productivity_enabled"
+                      value="1">
+                <label class="form-check-label" for="productivityToggle">
+                  Track Productivity
+                </label>
+              </div>
+
+              <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox"
+                      role="switch"
+                      id="focusToggle"
+                      name="focus_enabled"
+                      value="1">
+                <label class="form-check-label" for="focusToggle">
+                  Track Focus
+                </label>
+              </div>
+
+              <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox"
+                      role="switch"
+                      id="hydrationToggle"
+                      name="hydration_enabled"
+                      value="1">
+                <label class="form-check-label" for="hydrationToggle">
+                  Track Hydration
+                </label>
+              </div>
+
+              <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox"
+                      role="switch"
+                      id="postureToggle"
+                      name="posture_enabled"
+                      value="1">
+                <label class="form-check-label" for="postureToggle">
+                  Track Posture
+                </label>
+              </div>
+
+              <div class="mb-3">
+                <label for="voice_selection" class="form-label">Voice</label>
+                <select class="form-select" name="voice_selection" id="voice_selection">
+                  <option value="voice1">Voice 1</option>
+                  <option value="voice2">Voice 2</option>
+                  <option value="voice3">Voice 3</option>
+                </select>
+              </div>
+
+              <!-- Submit Button -->
+              <button type="button" id="settings_button" class="btn btn-primary mt-3">Save</button>
+
+            </form>
+          </div>
+        </div>
+
+        <!-- Right side -->
+        <div class="col-md-6">
+          <div class="screen-half">
+            <h1>Profile</h1>
+            <form method="POST" id="profile_form" action="{{ url_for('update_profile') }}">
+              <div class="form-group">
+                <label for="name">Name</label>
+                <input type="text" class="form-control" 
+                  name="name" id="name" 
+                  placeholder="John Smith" 
+                  value="{{ user_profile.user_name }}">
+              </div>
+              <br>
+
+              <div class="form-group">
+                <label for="job_title">Job Title</label>
+                <input type="text" class="form-control" 
+                  name="job_title" 
+                  id="job_title" 
+                  placeholder="Software Engineer",
+                  value="{{ user_profile.user_job }}">
+              </div>
+              <br>
+
+              <div class="form-group">
+                <label for="project_desc">Project Description</label>
+                <input type="text" class="form-control" 
+                  name="project_desc" 
+                  id="project_desc" 
+                  placeholder="Develop Github 2"
+                  value="{{ user_profile.user_project }}">
+              </div>
+              <br>
+
+              <div class="form-group">
+                <div class="col-md-6">
+                  <button type="button" id="profile_button" class="btn btn-primary">Save</button>
+                </div>
+              </div>
+              <br>
+
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='settings.js') }}"></script>
+{% endblock %}

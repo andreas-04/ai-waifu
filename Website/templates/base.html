@@ -1,0 +1,61 @@
+<!-- templates/base.html -->
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Focus Fairy{% endblock %}</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="icon" href="{{ url_for('static', filename='images/icon.png') }}">
+
+    {% block head %}{% endblock %}
+  </head>
+
+  <body>
+
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-light custom-navbar">
+      <div class="container-fluid">
+        <a class="navbar-brand">
+          <img src="{{ url_for('static', filename='images/icon.png') }}"
+               alt="Icon"
+               height="50">
+        </a>
+
+        <button class="navbar-toggler"
+                type="button"
+                data-bs-toggle="collapse"
+                data-bs-target="#navbarNav">
+          <span class="navbar-toggler-icon"></span>
+        </button>
+
+        <div class="collapse navbar-collapse" id="navbarNav">
+          <div class="navbar-nav ms-auto">
+
+          <a class="nav-link p-0"
+            href="#"
+            data-bs-toggle="modal"
+            data-bs-target="#settingsModal">
+
+            <img src="{{ url_for('static', filename='images/settings.png') }}"
+                alt="Settings"
+                height="50"
+                class="settings-icon">
+
+          </a>
+          </div>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Page Content -->
+    <div class="container mt-4">
+      {% block content %}{% endblock %}
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
+    {% block scripts %}{% endblock %}
+  </body>
+</html>
