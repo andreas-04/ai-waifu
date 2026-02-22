@@ -1,6 +1,10 @@
+*.png
+*.task
+*.pt
+*/__pycache__/
+*.cpyt
+*.env
 .venv/
-.env
-models/
 frame.jpg
 text.txt
 results.csv
