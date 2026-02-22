@@ -341,8 +341,9 @@ class PostureMonitor:
 
     SMOOTHING_WINDOW = 5
 
-    def __init__(self, debug: bool = False):
+    def __init__(self, debug: bool = False, notifier=None):
         self.debug = debug
+        self._notifier = notifier
         self._detector = None
 
         # calibration
@@ -413,6 +414,20 @@ class PostureMonitor:
         if self._posture_log:
             generate_posture_report(self._posture_log, self._session_start)
         print("\n👋 PostureMonitor closed.")
+
+    # ── Score ─────────────────────────────────────────────────────────────────
+
+    def get_score(self) -> int:
+        """
+        Return a 0-100 posture quality score over the full session lifetime.
+
+        = (good-posture frames / total frames) × 100.
+        Returns 100 (neutral) while calibrating or before any data.
+        """
+        if not self._calibrated or not self._posture_log:
+            return 100
+        good = sum(1 for e in self._posture_log if e["is_good"])
+        return int(good / len(self._posture_log) * 100)
 
     # ── Frame callback ────────────────────────────────────────────────────────
 
@@ -528,10 +543,15 @@ class PostureMonitor:
                             and now - self._last_notification_time >= NOTIFICATION_COOLDOWN_S
                         ):
                             issue_str = ", ".join(issues)
-                            print(f"⚠️  Bad posture for {BAD_POSTURE_NOTIFY_S:.0f}s: {issue_str}")
+                            detail = f"⚠️  Bad posture for {BAD_POSTURE_NOTIFY_S:.0f}s: {issue_str}"
+                            print(detail)
                             send_notification(
                                 "Posture Alert 🪑", f"Fix your posture! ({issue_str})"
                             )
+                            if self._notifier:
+                                self._notifier.notify(
+                                    "posture", "warning", "Bad posture", detail
+                                )
                             self._last_notification_time = now
                     else:
                         self._bad_posture_start = None

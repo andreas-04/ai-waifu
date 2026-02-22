@@ -3,18 +3,21 @@
 AI-Waifu backend — combined runner.
 
 Shares a single cv2.VideoCapture (via CameraManager) between:
-  • PostureMonitor  — bad-posture detection & desktop notifications
+  • PostureMonitor   — bad-posture detection & desktop notifications
   • HydrationTracker — sip detection & desktop notifications
+  • FocusTracker     — head pose, gaze direction & face-presence monitoring
 
 Run:
-    python main.py [--debug] [--camera N] [--no-yolo]
+    python main.py [--debug] [--camera N]
     python main.py --posture-only [--debug]
-    python main.py --hydration-only [--debug] [--no-yolo]
+    python main.py --hydration-only [--debug]
+    python main.py --focus-only [--debug]
 """
 
 import argparse
 import sys
 import os
+import threading
 
 # Allow sibling-package imports (posture/, hydration/)
 _HERE = os.path.dirname(os.path.abspath(__file__))
@@ -30,36 +33,55 @@ sys.path.insert(0, os.path.join(_HERE, "focus"))
 from posture_monitor import PostureMonitor          # noqa: E402
 from hydration_tracker import HydrationTracker      # noqa: E402
 from focus_tracker import FocusTracker              # noqa: E402
+from ws_notifier import WsNotifier                  # noqa: E402
+
+
+def _score_reporter(
+    posture_mod, hydration_mod, focus_mod,
+    notifier, interval: int, stop_evt: threading.Event,
+) -> None:
+    """Broadcast a score snapshot every *interval* seconds until stopped."""
+    while not stop_evt.wait(interval):
+        p = posture_mod.get_score()   if posture_mod   else None
+        h = hydration_mod.get_score() if hydration_mod else None
+        f = focus_mod.get_score()     if focus_mod     else None
+        notifier.notify_scores(p, h, f)
 
 
 def main(
     debug: bool = False,
     camera_index: int = 0,
-    use_yolo: bool = True,
     enable_posture: bool = True,
     enable_hydration: bool = True,
     enable_focus: bool = True,
 ) -> None:
     modules: list = []
 
+    # ── Start WebSocket / SSE notification server ─────────────────────────────
+    notifier = WsNotifier()
+    notifier.start()
+
     # ── Instantiate and open modules ─────────────────────────────────────────
+    posture = hydration = focus = None
+
     if enable_posture:
-        posture = PostureMonitor(debug=debug)
+        posture = PostureMonitor(debug=debug, notifier=notifier)
         posture.open()
         modules.append(posture)
 
     if enable_hydration:
-        hydration = HydrationTracker(debug=debug, use_yolo=use_yolo)
+        hydration = HydrationTracker(debug=debug, notifier=notifier)
         hydration.open()
         modules.append(hydration)
 
     if enable_focus:
-        focus = FocusTracker(debug=debug)
+        focus = FocusTracker(debug=debug, notifier=notifier)
         focus.open()
         modules.append(focus)
 
     if not modules:
         print("⚠️  No modules enabled — exiting.")
+        notifier.stop()
         return
 
     # ── Single shared camera ──────────────────────────────────────────────────
@@ -70,6 +92,13 @@ def main(
     print(f"\n🚀 Running {len(modules)} module(s) on camera {camera_index}…")
     print("   Press Ctrl+C to stop.\n")
 
+    _stop_scores = threading.Event()
+    threading.Thread(
+        target=_score_reporter,
+        args=(posture, hydration, focus, notifier, 10, _stop_scores),
+        daemon=True, name="ScoreReporter",
+    ).start()
+
     try:
         cam.start()   # blocks until stop() or KeyboardInterrupt
     except KeyboardInterrupt:
@@ -78,6 +107,8 @@ def main(
         cam.stop()
         for mod in modules:
             mod.close()
+        _stop_scores.set()
+        notifier.stop()
 
 
 if __name__ == "__main__":
@@ -91,10 +122,6 @@ if __name__ == "__main__":
     parser.add_argument(
         "--camera", type=int, default=0,
         help="Camera index (default: 0)",
-    )
-    parser.add_argument(
-        "--no-yolo", action="store_true",
-        help="Disable YOLO for hydration tracker; use contour fallback",
     )
     parser.add_argument(
         "--posture-only", action="store_true",
@@ -122,7 +149,6 @@ if __name__ == "__main__":
         main(
             debug=args.debug,
             camera_index=args.camera,
-            use_yolo=not args.no_yolo,
             enable_posture=enable_posture,
             enable_hydration=enable_hydration,
             enable_focus=enable_focus,

@@ -378,8 +378,9 @@ class FocusTracker:
         Read tracker.state (FocusState) at any time for the latest snapshot.
     """
 
-    def __init__(self, debug: bool = False):
+    def __init__(self, debug: bool = False, notifier=None):
         self.debug = debug
+        self._notifier = notifier
         self._detector = None
         self._state = FocusState()
         self._window_visible = debug
@@ -445,6 +446,20 @@ class FocusTracker:
         if self._focus_log:
             generate_focus_report(self._focus_log, self._session_start)
         print("\n👋 FocusTracker closed.")
+
+    # ── Score ─────────────────────────────────────────────────────────────────
+
+    def get_score(self) -> int:
+        """
+        Return a 0-100 focus score over the full session lifetime.
+
+        = (focused frames / total frames) × 100.
+        Returns 100 (neutral) when there is no data yet.
+        """
+        if not self._focus_log:
+            return 100
+        focused = sum(1 for e in self._focus_log if e["is_focused"])
+        return int(focused / len(self._focus_log) * 100)
 
     # ── Frame callback ────────────────────────────────────────────────────────
 
@@ -522,11 +537,16 @@ class FocusTracker:
                     now - self._looking_away_since    >= AWAY_NOTIFY_S
                     and now - self._last_away_notification >= NOTIFICATION_COOLDOWN_S
                 ):
-                    print(f"👀 Distracted for {AWAY_NOTIFY_S:.0f}s: {state.away_reason}")
+                    detail = f"👀 Distracted for {AWAY_NOTIFY_S:.0f}s: {state.away_reason}"
+                    print(detail)
                     _send_notification(
                         "Focus Alert 👀",
                         f"You've been distracted! ({state.away_reason})",
                     )
+                    if self._notifier:
+                        self._notifier.notify(
+                            "focus", "warning", "Bad focus", detail
+                        )
                     self._last_away_notification = now
                     self._looking_away_since     = now  # reset so cooldown applies
             else:
@@ -545,11 +565,16 @@ class FocusTracker:
                 and now - self._last_absent_notification >= NOTIFICATION_COOLDOWN_S
             ):
                 elapsed = now - self._face_absent_since
-                print(f"🚶 Face absent for {elapsed:.0f}s")
+                detail = f"🚶 Face absent for {elapsed:.0f}s"
+                print(detail)
                 _send_notification(
                     "Focus Alert 🚶",
                     "Are you still there? Come back!",
                 )
+                if self._notifier:
+                    self._notifier.notify(
+                        "focus", "warning", "Face absent", detail
+                    )
                 self._last_absent_notification = now
                 self._face_absent_since        = now  # reset so cooldown applies
 
