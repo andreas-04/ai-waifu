@@ -1,3 +1,5 @@
 *.png
 *.task
 *.pt
+*.env
+__pycache__/
