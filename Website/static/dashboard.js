@@ -1,12 +1,17 @@
+prod_dial = null;
+hyd_dial = null;
+focus_dial = null;
+post_dial = null;
+
 document.addEventListener("DOMContentLoaded", function () {
     makeKnobs();
 });
 
 function makeKnobs() {
-    createKnob('prod_dial');
-    createKnob('hydration_dial');
-    createKnob('focus_dial');
-    createKnob('posture_dial');
+    prod_dial = createKnob('prod_dial');
+    hyd_dial = createKnob('hydration_dial');
+    focus_dial = createKnob('focus_dial');
+    post_dial = createKnob('posture_dial');
 }
 
 function createKnob(parentDivID) {
@@ -20,6 +25,7 @@ function createKnob(parentDivID) {
     knob.setProperty('trackWidth', 0.4);
     knob.setProperty('valMin', 0);
     knob.setProperty('valMax', 100);
+    knob.setProperty('readonly', true);
 
     // Set initial value.
     knob.setValue(50);
@@ -30,4 +36,6 @@ function createKnob(parentDivID) {
     // Add it to the DOM.
     const elem = document.getElementById(parentDivID);
     elem.appendChild(node);
+
+    return node;
 }
