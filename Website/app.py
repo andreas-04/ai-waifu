@@ -413,6 +413,8 @@ def upload():
     # Update session summary and return session score
     productivity_score = update_session_summary(session_id, session_start, session_end)
 
+    print(activity_label)
+
     return jsonify({
         "status": "received", 
         "activity_label": activity_label,
