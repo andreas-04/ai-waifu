@@ -1,39 +1,10 @@
-<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="X-UA-Compatible" content="ie=edge">
-    <title>Focus Fairy</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" crossorigin="anonymous">
-    <style>
-      body { padding-top: 60px; }
-    </style>
-  </head>
+<!-- templates/home.html -->
+{% extends "base.html" %}
 
-  <body>
+{% block title %}Home | Focus Fairy{% endblock %}
 
-    <!-- Navbar -->
-    <nav class="navbar navbar-expand-lg navbar-light custom-navbar">
-      <div class="container-fluid">
-        <a class="navbar-brand" href="#">Focus Fairy</a>
+{% block content %}
 
-        <button class="navbar-toggler" type="button"
-          data-bs-toggle="collapse"
-          data-bs-target="#navbarNav"
-          aria-controls="navbarNav"
-          aria-expanded="false"
-          aria-label="Toggle navigation">
-          <span class="navbar-toggler-icon"></span>
-        </button>
-
-      <div class="collapse navbar-collapse" id="navbarNav">
-        <div class="navbar-nav ms-auto">
-          <a class="nav-link active" href="#">Home</a>
-          <a class="nav-link" href="#">Report</a>
-        </div>
-      </div>
-    </nav>
 
   <!-- The content of the page -->
     <div class="container-fluid mt-4">
@@ -42,76 +13,30 @@
         <!-- Left side -->
         <div class="col-md-6">
           <div class="screen-half">
-            <h1>Status</h1>
+            <h1>Statistics</h1>
 
-            <!-- Total system on / off -->
+            <!-- Average Focus -->
             <div class="form-check form-switch">
-              <input class="form-check-input" type="checkbox" role="switch" id="systemToggle">
-              <label class="form-check-label" for="systemToggle">System Enabled</label>
+                <label for="avg_focus">Average Focus</label>
+                <input type="number" class="form-control" id="avg_focus" placeholder="Average Focus" disabled>
             </div>
             <br>
 
-            <!-- Camera Access Switch -->
+            <!-- Average Focus -->
             <div class="form-check form-switch">
-              <input class="form-check-input" type="checkbox" role="switch" id="cameraToggle">
-              <label class="form-check-label" for="cameraToggle">Camera Access</label>
+                <label for="avg_posture">Average Posture</label>
+                <input type="number" class="form-control" id="avg_posture" placeholder="Average Posture" disabled>
             </div>
-            <br>
-
-            <!-- Screen Access Switch -->
-            <div class="form-check form-switch">
-              <input class="form-check-input" type="checkbox" role="switch" id="screenToggle">
-              <label class="form-check-label" for="screenToggle">Screen Access</label>
-            </div>
-            <br>
-
-            <!-- Logs -->
-            <label class="form-check-label" for="logging-box">Logs</label>
-            <textarea id="logging-box" class="logging-box" rows="9" disabled></textarea>
           </div>
         </div>
 
         <!-- Right side -->
         <div class="col-md-6">
           <div class="screen-half">
-            <h1>Profile</h1>
-            <form>
-              <div class="form-group">
-                <label for="name">Name</label>
-                <input type="text" class="form-control" id="name" placeholder="John Smith">
-              </div>
-              <br>
-
-              <div class="form-group">
-                <label for="job_title">Job Title</label>
-                <input type="text" class="form-control" id="job_title" placeholder="Software Engineer">
-              </div>
-              <br>
-
-              <div class="form-group">
-                <label for="project_desc">Project Description</label>
-                <input type="text" class="form-control" id="project_desc" placeholder="Develop Github 2">
-              </div>
-              <br>
-
-              <div class="form-group">
-                <div class="col-md-6">
-                  <button type="button" class="btn btn-primary">Save</button>
-                  <button type="button" class="btn btn-danger">Reset</button>
-                </div>
-                <div class="col-md-6">
-                  
-                </div>
-              </div>
-              <br>
-
-            </form>
+            <h1>Work Score</h1>
           </div>
         </div>
       </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js" integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI" crossorigin="anonymous"></script>
-    <script src="{{ url_for('static', filename='share.js') }}"></script>
-  </body>
-</html>
+{% endblock %}
