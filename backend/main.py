@@ -95,9 +95,16 @@ def main(
     _stop_scores = threading.Event()
     threading.Thread(
         target=_score_reporter,
-        args=(posture, hydration, focus, notifier, 10, _stop_scores),
+        args=(posture, hydration, focus, notifier, 1, _stop_scores),
         daemon=True, name="ScoreReporter",
     ).start()
+
+    # Send an immediate snapshot so clients don't wait 10 s for the first update
+    notifier.notify_scores(
+        posture.get_score()   if posture   else None,
+        hydration.get_score() if hydration else None,
+        focus.get_score()     if focus     else None,
+    )
 
     try:
         cam.start()   # blocks until stop() or KeyboardInterrupt
@@ -139,11 +146,19 @@ if __name__ == "__main__":
         "--no-focus", action="store_true",
         help="Disable the focus tracker",
     )
+    parser.add_argument(
+        "--no-posture", action="store_true",
+        help="Disable the posture monitor",
+    )
+    parser.add_argument(
+        "--no-hydration", action="store_true",
+        help="Disable the hydration tracker",
+    )
     args = parser.parse_args()
 
-    enable_posture  = not args.hydration_only and not args.focus_only
-    enable_hydration = not args.posture_only  and not args.focus_only
-    enable_focus    = not args.no_focus       and not args.posture_only and not args.hydration_only
+    enable_posture   = not args.no_posture   and not args.hydration_only and not args.focus_only
+    enable_hydration = not args.no_hydration and not args.posture_only   and not args.focus_only
+    enable_focus     = not args.no_focus     and not args.posture_only   and not args.hydration_only
 
     try:
         main(
