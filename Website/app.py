@@ -1,10 +1,19 @@
 import atexit
+from flask import Flask, request, render_template, jsonify
+import pytesseract
+import os
+import csv
 import json
 import os
 import signal
 import shutil
 import subprocess
 import sys
+from datetime import datetime, timedelta
+from collections import Counter
+from transformers import pipeline
+from PIL import Image
+import torch
 
 from flask import Flask, jsonify, request, render_template, redirect, url_for, send_file, abort
 
@@ -115,6 +124,303 @@ def settings():
         "settings.html", 
         user_settings=user_settings,
         user_profile=user_profile)
+notifier = WsNotifier()
+notifier.start()
+
+user_settings = Settings(True, False, False)
+user_profile = Profile("John Smith", 
+                       "Youtube, HBO MAX, Netflix",
+                       "Work, Coding, Reading, School, Email", )
+
+upload_request_count = 0
+
+# Get the directory where this app.py file is located
+app_dir = os.path.dirname(os.path.abspath(__file__))
+models_dir = os.path.join(app_dir, "models")
+log_file = os.path.join(app_dir, "results_detailed.csv")
+session_log_file = os.path.join(app_dir, "results_sessions.csv")
+categories_cache_file = os.path.join(app_dir, "categories_cache.json")
+
+# Ensure models directory exists
+os.makedirs(models_dir, exist_ok=True)
+
+# Initialize CSV log file with headers if it doesn't exist
+if not os.path.exists(log_file):
+    with open(log_file, 'w', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow([
+            'Timestamp',
+            'SessionId',
+            'ActivityLabel',
+            'ActivityScore',
+            'ProductivityLabel',
+            'ProductivityScore',
+            'TextLength'
+        ])
+
+# Initialize session summary CSV if it doesn't exist
+if not os.path.exists(session_log_file):
+    with open(session_log_file, 'w', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow([
+            'SessionId',
+            'SessionStart',
+            'SessionEnd',
+            'Samples',
+            'ProductiveSamples',
+            'UnproductiveSamples',
+            'ProductivityScore',
+            'TopActivity',
+            'TopActivityShare'
+        ])
+
+# create an application init to download the classifier
+classifier_path = os.path.join(models_dir, "productivity_classifier")
+if not os.path.exists(classifier_path):
+    print("Model not found. Downloading classifier model.")
+    temp_classifier = pipeline(
+        task="zero-shot-image-classification",
+        model="openai/clip-vit-large-patch14",  # or openai/clip-vit-base-patch32
+        device=-1,  # set to -1 for CPU
+    )
+    temp_classifier.model.save_pretrained(classifier_path)
+    image_processor = getattr(temp_classifier, "image_processor", None) or getattr(temp_classifier, "processor", None)
+    if image_processor is not None:
+        image_processor.save_pretrained(classifier_path)
+    print("Model saved locally.")
+
+def get_pipeline_device():
+    if torch.cuda.is_available():
+        return 0
+    return -1
+
+print("Loading classifier model...")
+classifier = pipeline(
+    task="zero-shot-image-classification",
+    model=classifier_path,
+    device=get_pipeline_device(),
+)
+
+SESSION_WINDOW_MINUTES = 15
+
+def get_session_window(dt, window_minutes=SESSION_WINDOW_MINUTES):
+    window_start = dt.replace(second=0, microsecond=0)
+    minutes = (window_start.minute // window_minutes) * window_minutes
+    window_start = window_start.replace(minute=minutes)
+    window_end = window_start + timedelta(minutes=window_minutes)
+    session_id = window_start.strftime("%Y%m%d_%H%M")
+    return session_id, window_start, window_end
+
+def get_blocklist():
+    raw = ",".join(filter(None, [user_settings.blocklist, user_profile.blocklist]))
+    return [item.strip() for item in raw.split(",") if item.strip()]
+
+def get_prodlist():
+    raw = ",".join(filter(None, [user_settings.prodlist, user_profile.prodlist]))
+    return [item.strip() for item in raw.split(",") if item.strip()]
+
+def classify_activity(img):
+    labels = get_blocklist() + get_prodlist()
+    if not labels:
+        return "unknown", 0.0
+    result = classifier(img, candidate_labels=labels)
+    top = result[0] if isinstance(result, list) and result else result
+    return top["label"], float(top["score"])
+
+def activity_to_productivity(activity_label, activity_score):
+    if activity_label in get_blocklist() and activity_score > 0.4:
+        return "unproductive"
+    return "productive"
+
+def log_detailed_result(activity_label, activity_score, productivity_label, productivity_score, session_id, text_length=0):
+    """Log detailed classification result with timestamp to CSV"""
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    with open(log_file, 'a', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow([
+            timestamp,
+            session_id,
+            activity_label,
+            activity_score,
+            productivity_label,
+            productivity_score,
+            text_length
+        ])
+
+def read_session_log():
+    sessions = {}
+    if not os.path.exists(session_log_file):
+        return sessions
+    with open(session_log_file, 'r', newline='') as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            sessions[row['SessionId']] = row
+    return sessions
+
+def write_session_log(sessions):
+    with open(session_log_file, 'w', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow([
+            'SessionId',
+            'SessionStart',
+            'SessionEnd',
+            'Samples',
+            'ProductiveSamples',
+            'UnproductiveSamples',
+            'ProductivityScore',
+            'TopActivity',
+            'TopActivityShare'
+        ])
+        for session_id, row in sessions.items():
+            writer.writerow([
+                row['SessionId'],
+                row['SessionStart'],
+                row['SessionEnd'],
+                row['Samples'],
+                row['ProductiveSamples'],
+                row['UnproductiveSamples'],
+                row['ProductivityScore'],
+                row['TopActivity'],
+                row['TopActivityShare']
+            ])
+
+def update_session_summary(session_id, session_start, session_end):
+    if not os.path.exists(log_file):
+        return 0
+
+    activity_counts = Counter()
+    productive_count = 0
+    unproductive_count = 0
+    total_count = 0
+
+    with open(log_file, 'r', newline='') as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            if row['SessionId'] != session_id:
+                continue
+            total_count += 1
+            activity_counts[row['ActivityLabel']] += 1
+            if row['ProductivityLabel'] == 'productive':
+                productive_count += 1
+            else:
+                unproductive_count += 1
+
+    if total_count == 0:
+        return 0
+
+    productivity_score = round((productive_count / total_count) * 100, 2)
+    top_activity, top_activity_count = activity_counts.most_common(1)[0]
+    top_activity_share = round((top_activity_count / total_count) * 100, 2)
+
+    sessions = read_session_log()
+    sessions[session_id] = {
+        'SessionId': session_id,
+        'SessionStart': session_start.strftime("%Y-%m-%d %H:%M:%S"),
+        'SessionEnd': session_end.strftime("%Y-%m-%d %H:%M:%S"),
+        'Samples': str(total_count),
+        'ProductiveSamples': str(productive_count),
+        'UnproductiveSamples': str(unproductive_count),
+        'ProductivityScore': str(productivity_score),
+        'TopActivity': top_activity,
+        'TopActivityShare': str(top_activity_share)
+    }
+    write_session_log(sessions)
+    return productivity_score
+
+def calculate_productivity_score():
+    """Get the latest session productivity score"""
+    if not os.path.exists(session_log_file):
+        return 0
+
+    try:
+        with open(session_log_file, 'r', newline='') as f:
+            reader = csv.DictReader(f)
+            rows = list(reader)
+            if not rows:
+                return 0
+            latest = rows[-1]
+            return float(latest.get('ProductivityScore', 0))
+    except Exception as e:
+        print(f"Error calculating productivity score: {e}")
+        return 0
+
+def was_recently_unproductive(window_seconds=30):
+    if not os.path.exists(log_file):
+        return False
+
+    cutoff = datetime.now() - timedelta(seconds=window_seconds)
+    try:
+        with open(log_file, 'r', newline='') as f:
+            reader = csv.DictReader(f)
+            total_count = 0
+            productive_count = 0
+            for row in reader:
+                timestamp = datetime.strptime(row['Timestamp'], "%Y-%m-%d %H:%M:%S")
+                if timestamp < cutoff:
+                    continue
+                total_count += 1
+                if row['ProductivityLabel'] == 'productive':
+                    productive_count += 1
+    except Exception as e:
+        print(f"Error checking recent productivity: {e}")
+        return False
+
+    if total_count == 0:
+        return False
+
+    productivity_pct = (productive_count / total_count) * 100
+    return productivity_pct < 50
+
+@app.route("/upload", methods=["POST"])
+def upload():
+    global upload_request_count
+    upload_request_count += 1
+    
+    image = request.files["image"]
+
+    frame_path = os.path.join(app_dir, "frame.jpg")
+    image.save(frame_path)
+
+    img = Image.open(frame_path).convert("RGB")
+    activity_label, activity_score = classify_activity(img)
+    productivity_label = activity_to_productivity(activity_label, activity_score)
+    productivity_score_value = 1 if productivity_label == "productive" else 0
+    now = datetime.now()
+    session_id, session_start, session_end = get_session_window(now)
+
+    # Log the detailed result
+    log_detailed_result(
+        activity_label,
+        activity_score,
+        productivity_label,
+        productivity_score_value,
+        session_id,
+    )
+
+    if upload_request_count % 30 == 0:
+        recently_unproductive = was_recently_unproductive()
+    else:
+        recently_unproductive = False
+        
+    if recently_unproductive:
+        notifier.notify(
+            module="focus",
+            level="warning",
+            simple="Low Productivity",
+            detail="⚠️  User productivity has dropped below 50% in the last 30 seconds. Consider taking a break or refocusing."
+        )
+
+    # Update session summary and return session score
+    productivity_score = update_session_summary(session_id, session_start, session_end)
+
+    return jsonify({
+        "status": "received", 
+        "activity_label": activity_label,
+        "activity_score": float(activity_score),
+        "productivity_label": productivity_label,
+        "productivity_score": productivity_score
+    })
+# Keep the initialized settings/profile above; avoid resetting them later.
 
 @app.route('/', methods=['GET'])
 def index():
