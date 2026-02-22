@@ -6,13 +6,17 @@ Tech stack: OpenCV · MediaPipe Pose · NumPy
 Run:  python posture_monitor.py [--debug]
 
 Flow:
-  1. Opens the front-facing webcam.
+  1. Registers on_frame() with a CameraManager (or runs standalone).
   2. Auto-starts calibration — sit up straight for 3 seconds.
-  3. After calibration, runs in background monitoring posture.
+  3. After calibration, monitors posture on every delivered frame.
   4. Sends desktop notifications when bad posture is detected.
   5. Use --debug flag to keep the video window open for testing.
+
+Standalone:  python posture_monitor.py [--debug] [--camera N]
 """
 
+import os
+import sys
 import time
 import subprocess
 import platform
@@ -320,219 +324,274 @@ def generate_posture_report(posture_log, session_start):
 
 
 # ──────────────────────────────────────────────
-# Main loop
+# PostureMonitor — stateful processor
 # ──────────────────────────────────────────────
-def main(debug=False, camera_index=0):
-    import urllib.request
-    import os
-    
-    # Get the directory where this script is located
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    
-    # Download the pose landmarker model if not present
-    model_path = os.path.join(script_dir, "pose_landmarker_lite.task")
-    if not os.path.exists(model_path):
-        print("Downloading pose model (one-time setup)...")
-        model_url = "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/latest/pose_landmarker_lite.task"
-        urllib.request.urlretrieve(model_url, model_path)
-        print(f"Model downloaded to {model_path}")
-    
-    # Use the new task-based API
-    base_options = mp.tasks.BaseOptions(model_asset_path=model_path)
-    options = mp.tasks.vision.PoseLandmarkerOptions(
-        base_options=base_options,
-        running_mode=mp.tasks.vision.RunningMode.VIDEO,
-        num_poses=1,
-        min_pose_detection_confidence=0.5,
-        min_pose_presence_confidence=0.5,
-        min_tracking_confidence=0.5,
-    )
-    detector = mp.tasks.vision.PoseLandmarker.create_from_options(options)
+class PostureMonitor:
+    """
+    Stateful posture monitor that processes frames delivered via on_frame().
 
-    cap = cv2.VideoCapture(camera_index)
-    if not cap.isOpened():
-        print("ERROR: Could not open webcam.")
-        return
+    Lifecycle
+    ---------
+        monitor = PostureMonitor(debug=True)
+        monitor.open()                      # load MediaPipe model
+        camera_manager.register(monitor.on_frame)
+        # ... run camera loop ...
+        monitor.close()                     # release MediaPipe + print report
+    """
 
-    print("╔══════════════════════════════════════════╗")
-    print("║    Posture Monitor — Background Mode     ║")
-    print("╠══════════════════════════════════════════╣")
-    if debug:
-        print("║  DEBUG MODE: Window stays open           ║")
-        print("║  c/r = recalibrate  |  q = quit          ║")
-    else:
-        print("║  Calibrating... sit up straight!         ║")
-        print("║  Window will close after calibration     ║")
-        print("║  Press Ctrl+C in terminal to quit        ║")
-    print("╚══════════════════════════════════════════╝")
-
-    # ── State ───────────────────────────────────
-    calibrated = False
-    calibrating = True  # Auto-start calibration
-    cal_start_time = time.time()
-    cal_samples: list[dict] = []
-    baseline: dict = {}
-    window_visible = True
-
-    bad_posture_start: float | None = None
-    last_notification_time = 0.0
-    
-    # Posture tracking for report
-    session_start = datetime.now()
-    posture_log: list[dict] = []
-
-    # Smoothing buffer — average the last N frames to reduce jitter
     SMOOTHING_WINDOW = 5
-    metric_buffer: deque[dict] = deque(maxlen=SMOOTHING_WINDOW)
 
-    frame_count = 0
-    try:
-        while True:
-            ret, frame = cap.read()
-            if not ret:
-                break
+    def __init__(self, debug: bool = False):
+        self.debug = debug
+        self._detector = None
 
-            # Flip horizontally so the image acts like a mirror
-            frame = cv2.flip(frame, 1)
-            rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            
-            # Convert to MediaPipe Image
-            mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
-            frame_timestamp_ms = int(frame_count * (1000 / 30))  # Assume 30fps
-            results = detector.detect_for_video(mp_image, frame_timestamp_ms)
-            frame_count += 1
-            
-            # Extract pose landmarks (same structure as before)
-            pose_landmarks = results.pose_landmarks[0] if results.pose_landmarks else None
+        # calibration
+        self._calibrating = True
+        self._calibrated = False
+        self._cal_start_time = time.time()
+        self._cal_samples: list[dict] = []
+        self._baseline: dict = {}
 
-            is_good = True
-            issues: list[str] = []
+        self._first_frame = True   # reset cal timer on first frame, not __init__
 
-            if pose_landmarks:
-                # Draw skeleton overlay — manually draw landmarks since new API doesn't have drawing utils
-                h, w, _ = frame.shape
-                for idx, landmark in enumerate(pose_landmarks):
-                    if landmark.visibility > VISIBILITY_THRESHOLD:
-                        cx, cy = int(landmark.x * w), int(landmark.y * h)
-                        cv2.circle(frame, (cx, cy), 4, (0, 255, 0), -1)
-                
-                # Draw key connections for visualization
-                connections = [
-                    (LM_LEFT_SHOULDER, LM_RIGHT_SHOULDER),  # Shoulder line
-                    (LM_LEFT_EAR, LM_LEFT_SHOULDER),        # Left side
-                    (LM_RIGHT_EAR, LM_RIGHT_SHOULDER),      # Right side
-                ]
-                for start_idx, end_idx in connections:
-                    start = pose_landmarks[start_idx]
-                    end = pose_landmarks[end_idx]
-                    if start.visibility > VISIBILITY_THRESHOLD and end.visibility > VISIBILITY_THRESHOLD:
-                        start_pt = (int(start.x * w), int(start.y * h))
-                        end_pt = (int(end.x * w), int(end.y * h))
-                        cv2.line(frame, start_pt, end_pt, (0, 255, 0), 2)
+        # monitoring
+        self._metric_buffer: deque[dict] = deque(maxlen=self.SMOOTHING_WINDOW)
+        self._bad_posture_start: float | None = None
+        self._last_notification_time = 0.0
+        self._window_visible = True
 
-                if landmarks_visible(pose_landmarks):
-                    metrics = extract_metrics(pose_landmarks)
+        # reporting
+        self._session_start = datetime.now()
+        self._posture_log: list[dict] = []
 
-                    # ── Calibration phase ─────────────
-                    if calibrating:
-                        cal_samples.append(metrics)
-                        elapsed = time.time() - cal_start_time
-                        progress = min(elapsed / CALIBRATION_DURATION_S, 1.0)
-                        draw_status(frame, True, [], False, True, progress)
+    # ── Setup / teardown ──────────────────────────────────────────────────────
 
-                        if elapsed >= CALIBRATION_DURATION_S:
-                            baseline = average_metrics(cal_samples)
-                            calibrated = True
-                            calibrating = False
-                            metric_buffer.clear()
-                            print(f"\n✅ Calibration complete ({len(cal_samples)} samples averaged)")
-                            print(f"   Baseline shoulder width : {baseline['shoulder_width']:.4f}")
-                            print(f"   Baseline ear-shoulder   : {baseline['ear_shoulder_dist']:.4f}")
-                            print(f"   Baseline face scale     : {baseline['face_scale']:.4f}")
-                            print(f"   Baseline head tilt      : {baseline['head_tilt']:.4f}")
-                            print(f"   Baseline shoulder asym  : {baseline['shoulder_asym']:.4f}")
-                            if not debug:
-                                print("\n🎯 Monitoring posture in background...")
-                                print("   You'll receive notifications for bad posture.")
-                                window_visible = False
-                                cv2.destroyAllWindows()
-                                cv2.waitKey(1)  # Process window events to ensure closure
-                            else:
-                                print("\n🐛 Debug mode: window staying open\n")
+    def open(self) -> None:
+        """Load the MediaPipe model.  Call once before registering on_frame."""
+        import urllib.request
 
-                    # ── Live monitoring phase ─────────
-                    elif calibrated:
-                        metric_buffer.append(metrics)
-                        smoothed = average_metrics(list(metric_buffer))
-                        is_good, issues = check_posture(smoothed, baseline)
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        model_path = os.path.join(script_dir, "pose_landmarker_lite.task")
+        if not os.path.exists(model_path):
+            print("Downloading pose model (one-time setup)...")
+            model_url = (
+                "https://storage.googleapis.com/mediapipe-models/"
+                "pose_landmarker/pose_landmarker_lite/float16/latest/"
+                "pose_landmarker_lite.task"
+            )
+            urllib.request.urlretrieve(model_url, model_path)
+            print(f"Model downloaded to {model_path}")
 
-                        # Log posture data for report
-                        posture_log.append({
-                            'time': datetime.now(),
-                            'is_good': is_good,
-                            'issues': issues.copy()
-                        })
+        options = mp.tasks.vision.PoseLandmarkerOptions(
+            base_options=mp.tasks.BaseOptions(model_asset_path=model_path),
+            running_mode=mp.tasks.vision.RunningMode.VIDEO,
+            num_poses=1,
+            min_pose_detection_confidence=0.5,
+            min_pose_presence_confidence=0.5,
+            min_tracking_confidence=0.5,
+        )
+        self._detector = mp.tasks.vision.PoseLandmarker.create_from_options(options)
 
-                        if not is_good:
-                            now = time.time()
-                            if bad_posture_start is None:
-                                bad_posture_start = now
-                            elif (now - bad_posture_start >= BAD_POSTURE_NOTIFY_S and
-                                  now - last_notification_time >= NOTIFICATION_COOLDOWN_S):
-                                issue_str = ", ".join(issues)
-                                print(f"⚠️  Bad posture for {BAD_POSTURE_NOTIFY_S:.0f}s: {issue_str}")
-                                send_notification("Posture Alert 🪑",
-                                                  f"Fix your posture! ({issue_str})")
-                                last_notification_time = now
+        print("╔══════════════════════════════════════════╗")
+        print("║    Posture Monitor — Background Mode     ║")
+        print("╠══════════════════════════════════════════╣")
+        if self.debug:
+            print("║  DEBUG MODE: Window stays open           ║")
+            print("║  c/r = recalibrate  |  q = quit          ║")
+        else:
+            print("║  Calibrating... sit up straight!         ║")
+            print("║  Window will close after calibration     ║")
+            print("║  Press Ctrl+C in terminal to quit        ║")
+        print("╚══════════════════════════════════════════╝")
+
+    def close(self) -> None:
+        """Release the MediaPipe detector and print the session report."""
+        if self._detector is not None:
+            self._detector.close()
+            self._detector = None
+        cv2.destroyWindow("Posture Monitor")
+        if self._posture_log:
+            generate_posture_report(self._posture_log, self._session_start)
+        print("\n👋 PostureMonitor closed.")
+
+    # ── Frame callback ────────────────────────────────────────────────────────
+
+    def on_frame(self, frame: np.ndarray, ts_ms: int) -> None:
+        """
+        Called by CameraManager for every captured frame.
+
+        Parameters
+        ----------
+        frame : np.ndarray
+            BGR frame, already flipped by CameraManager.
+        ts_ms : int
+            Monotonic timestamp in milliseconds (used by MediaPipe VIDEO mode).
+        """
+        if self._detector is None:
+            return
+
+        if self._first_frame:
+            self._cal_start_time = time.time()
+            self._first_frame = False
+
+        # Work on a local copy so other callbacks see the unmodified frame
+        frame = frame.copy()
+        rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
+        results = self._detector.detect_for_video(mp_image, ts_ms)
+
+        pose_landmarks = (
+            results.pose_landmarks[0] if results.pose_landmarks else None
+        )
+        is_good = True
+        issues: list[str] = []
+
+        if pose_landmarks:
+            h, w, _ = frame.shape
+            # Draw landmarks
+            for landmark in pose_landmarks:
+                if landmark.visibility > VISIBILITY_THRESHOLD:
+                    cv2.circle(
+                        frame,
+                        (int(landmark.x * w), int(landmark.y * h)),
+                        4, (0, 255, 0), -1,
+                    )
+            # Draw key connections
+            for start_idx, end_idx in [
+                (LM_LEFT_SHOULDER, LM_RIGHT_SHOULDER),
+                (LM_LEFT_EAR, LM_LEFT_SHOULDER),
+                (LM_RIGHT_EAR, LM_RIGHT_SHOULDER),
+            ]:
+                s = pose_landmarks[start_idx]
+                e = pose_landmarks[end_idx]
+                if (
+                    s.visibility > VISIBILITY_THRESHOLD
+                    and e.visibility > VISIBILITY_THRESHOLD
+                ):
+                    cv2.line(
+                        frame,
+                        (int(s.x * w), int(s.y * h)),
+                        (int(e.x * w), int(e.y * h)),
+                        (0, 255, 0), 2,
+                    )
+
+            if landmarks_visible(pose_landmarks):
+                metrics = extract_metrics(pose_landmarks)
+
+                if self._calibrating:
+                    self._cal_samples.append(metrics)
+                    elapsed = time.time() - self._cal_start_time
+                    progress = min(elapsed / CALIBRATION_DURATION_S, 1.0)
+                    draw_status(frame, True, [], False, True, progress)
+
+                    if elapsed >= CALIBRATION_DURATION_S:
+                        self._baseline = average_metrics(self._cal_samples)
+                        self._calibrated = True
+                        self._calibrating = False
+                        self._metric_buffer.clear()
+                        print(
+                            f"\n✅ Posture calibration complete "
+                            f"({len(self._cal_samples)} samples)"
+                        )
+                        print(
+                            f"   Baseline shoulder width : {self._baseline['shoulder_width']:.4f}\n"
+                            f"   Baseline ear-shoulder   : {self._baseline['ear_shoulder_dist']:.4f}\n"
+                            f"   Baseline face scale     : {self._baseline['face_scale']:.4f}\n"
+                            f"   Baseline head tilt      : {self._baseline['head_tilt']:.4f}\n"
+                            f"   Baseline shoulder asym  : {self._baseline['shoulder_asym']:.4f}"
+                        )
+                        if not self.debug:
+                            print("\n🎯 Monitoring posture in background…")
+                            self._window_visible = False
+                            cv2.destroyWindow("Posture Monitor")
+                            cv2.waitKey(1)
                         else:
-                            bad_posture_start = None
+                            print("\n🐛 Debug mode: window staying open\n")
 
-                        draw_status(frame, is_good, issues, True, False, 0)
+                elif self._calibrated:
+                    self._metric_buffer.append(metrics)
+                    smoothed = average_metrics(list(self._metric_buffer))
+                    is_good, issues = check_posture(smoothed, self._baseline)
+
+                    self._posture_log.append({
+                        "time": datetime.now(),
+                        "is_good": is_good,
+                        "issues": issues.copy(),
+                    })
+
+                    if not is_good:
+                        now = time.time()
+                        if self._bad_posture_start is None:
+                            self._bad_posture_start = now
+                        elif (
+                            now - self._bad_posture_start >= BAD_POSTURE_NOTIFY_S
+                            and now - self._last_notification_time >= NOTIFICATION_COOLDOWN_S
+                        ):
+                            issue_str = ", ".join(issues)
+                            print(f"⚠️  Bad posture for {BAD_POSTURE_NOTIFY_S:.0f}s: {issue_str}")
+                            send_notification(
+                                "Posture Alert 🪑", f"Fix your posture! ({issue_str})"
+                            )
+                            self._last_notification_time = now
                     else:
-                        draw_status(frame, True, [], False, False, 0)
+                        self._bad_posture_start = None
+
+                    draw_status(frame, is_good, issues, True, False, 0)
                 else:
-                    # Landmarks not reliable enough
-                    cv2.putText(frame, "Landmarks not visible — face the camera",
-                                (20, frame.shape[0] - 30),
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 140, 255), 2)
+                    draw_status(frame, True, [], False, False, 0)
             else:
-                cv2.putText(frame, "No person detected",
-                            (20, frame.shape[0] - 30),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 140, 255), 2)
+                cv2.putText(
+                    frame, "Landmarks not visible — face the camera",
+                    (20, frame.shape[0] - 30),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 140, 255), 2,
+                )
+        else:
+            cv2.putText(
+                frame, "No person detected",
+                (20, frame.shape[0] - 30),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 140, 255), 2,
+            )
 
-            # Only show window during calibration or in debug mode
-            if window_visible:
-                cv2.imshow("Posture Monitor", frame)
-                key = cv2.waitKey(1) & 0xFF
-                if key == ord("q"):
-                    break
-                elif debug and (key == ord("c") or key == ord("r")):
-                    # Only allow manual recalibration in debug mode
-                    calibrating = True
-                    calibrated = False
-                    cal_start_time = time.time()
-                    cal_samples = []
-                    metric_buffer.clear()
-                    bad_posture_start = None
-                    window_visible = True
-                    print("📐 Recalibration started — hold a good posture…")
-            else:
-                # In background mode, just a small delay
-                time.sleep(0.033)  # ~30fps equivalent
-    
+        if self._window_visible:
+            cv2.imshow("Posture Monitor", frame)
+            key = cv2.waitKey(1) & 0xFF
+            if key == ord("q"):
+                # Signal the camera manager to stop if running standalone
+                raise KeyboardInterrupt
+            elif self.debug and key in (ord("c"), ord("r")):
+                self._calibrating = True
+                self._calibrated = False
+                self._cal_start_time = time.time()
+                self._cal_samples.clear()
+                self._metric_buffer.clear()
+                self._bad_posture_start = None
+                self._window_visible = True
+                print("📐 Recalibration started — hold a good posture…")
+
+
+# ──────────────────────────────────────────────
+# Standalone entry point
+# ──────────────────────────────────────────────
+def main(debug: bool = False, camera_index: int = 0) -> None:
+    """Run PostureMonitor standalone (owns its own CameraManager)."""
+    # Import here so the module can be used without backend/ on sys.path
+    _backend = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if _backend not in sys.path:
+        sys.path.insert(0, _backend)
+    from camera_manager import CameraManager
+
+    monitor = PostureMonitor(debug=debug)
+    monitor.open()
+
+    cam = CameraManager(camera_index=camera_index)
+    cam.register(monitor.on_frame)
+    try:
+        cam.start()
     except KeyboardInterrupt:
-        print("\n\n⏸️  Stopping monitor...")
-
-    # Cleanup and generate report
-    cap.release()
-    cv2.destroyAllWindows()
-    detector.close()
-    
-    # Generate posture report if we have monitoring data
-    if len(posture_log) > 0:
-        generate_posture_report(posture_log, session_start)
-    
-    print("\n👋 Bye!")
+        print("\n\n⏸️  Stopping posture monitor…")
+    finally:
+        cam.stop()
+        monitor.close()
 
 
 if __name__ == "__main__":
@@ -540,16 +599,15 @@ if __name__ == "__main__":
     parser.add_argument(
         "--debug",
         action="store_true",
-        help="Keep video window open for debugging (default: window closes after calibration)"
+        help="Keep video window open for debugging",
     )
     parser.add_argument(
         "--camera",
         type=int,
         default=0,
-        help="Camera index (default: 0 for built-in camera)"
+        help="Camera index (default: 0)",
     )
     args = parser.parse_args()
-    
     try:
         main(debug=args.debug, camera_index=args.camera)
     except KeyboardInterrupt:
