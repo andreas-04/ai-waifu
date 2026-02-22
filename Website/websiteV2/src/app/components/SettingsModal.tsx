@@ -157,7 +157,7 @@ interface SettingsModalProps {
 export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [settings, setSettings] = useState({
     systemEnabled: false, cameraAccess: false, screenAccess: false,
-    selectedVoice: "Voice 1",
+    selectedVoice: "Jessica",
   });
   const [profile, setProfile] = useState({ name: "" });
   const [blocklist, setBlocklist] = useState<string[]>([]);
@@ -176,7 +176,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
           systemEnabled:     Boolean(data.system_enabled),
           cameraAccess:      Boolean(data.camera_enabled),
           screenAccess:      Boolean(data.screen_enabled),
-          selectedVoice:     data.selected_voice ?? "Voice 1",
+          selectedVoice:     data.selected_voice ?? "Jessica",
         });
         setProfile({ name: data.user_name ?? "" });
         setBlocklist(data.blocklist ? data.blocklist.split(",").map((s: string) => s.trim()).filter(Boolean) : []);
@@ -368,7 +368,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                         outline: "none", cursor: "pointer",
                       }}
                     >
-                      {["Voice 1", "Voice 2", "Voice 3", "Voice 4"].map((v) => (
+                      {["Jessica", "Sarah", "Harry", "Daniel"].map((v) => (
                         <option key={v} value={v} style={{ background: "#0a0a18" }}>{v}</option>
                       ))}
                     </select>

@@ -103,6 +103,9 @@ export function HomePage() {
       setMetrics({ focus, hydration, posture, productivity });
     },
     onLog: (log) => setLogs((prev) => [...prev, log]),
+    onAudio: () => {
+      new Audio(`/static/notification.mp3?t=${Date.now()}`).play().catch(() => {});
+    },
   });
 
   // Session timer

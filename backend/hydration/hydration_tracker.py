@@ -33,7 +33,7 @@ CALIBRATION_DURATION_S = 3.0          # seconds to average neutral head-tilt rat
 HEAD_TILT_THRESHOLD_DEG = 10.0        # backward tilt from baseline to fire signal
 SIP_GESTURE_WINDOW_S = 2.0           # signals must co-occur within this window
 SIP_COOLDOWN_S = 10.0                # minimum seconds between counted sips
-SIP_REMINDER_S = 600.0               # notify if no sip detected within this window (10 min)
+SIP_REMINDER_S = 30.0               # notify if no sip detected within this window (10 min)
 SIGNAL_REQUIRED_COUNT = 2            # minimum signals for sip confirmation
 
 # Contour-based object detection (Signal 2)

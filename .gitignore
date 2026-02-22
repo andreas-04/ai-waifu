@@ -1,7 +1,7 @@
 *.png
 *.task
 *.pt
-*/__pycache__/
+__pycache__/
 *.cpyt
 *.env
 **/node_modules/
@@ -9,3 +9,8 @@ frame.jpg
 text.txt
 *.csv
 models
+.env
+*.png
+*.task
+*.pt
+*.mp3

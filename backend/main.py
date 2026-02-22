@@ -34,7 +34,7 @@ from posture_monitor import PostureMonitor          # noqa: E402
 from hydration_tracker import HydrationTracker      # noqa: E402
 from focus_tracker import FocusTracker              # noqa: E402
 from ws_notifier import WsNotifier                  # noqa: E402
-
+import web_notifier
 
 def _score_reporter(
     posture_mod, hydration_mod, focus_mod,
@@ -60,6 +60,7 @@ def main(
     # ── Start WebSocket / SSE notification server ─────────────────────────────
     notifier = WsNotifier()
     notifier.start()
+    web_notifier.start(notifier)
 
     # ── Instantiate and open modules ─────────────────────────────────────────
     posture = hydration = focus = None

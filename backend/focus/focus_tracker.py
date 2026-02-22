@@ -66,8 +66,8 @@ GAZE_SIDE_THRESHOLD = 0.80    # eyeLookIn / eyeLookOut
 GAZE_VERT_THRESHOLD = 0.85    # eyeLookUp / eyeLookDown
 
 # Duration (seconds) a condition must persist before a notification fires.
-ABSENT_NOTIFY_S        = 15.0
-AWAY_NOTIFY_S          = 20.0
+ABSENT_NOTIFY_S        = 30.0
+AWAY_NOTIFY_S          = 10.0
 NOTIFICATION_COOLDOWN_S = 30.0  # min gap between notifications of the same kind
 
 # Model download URL

@@ -13,7 +13,7 @@ class Settings:
     camera_enabled = False
     screen_enabled = False
 
-    selected_voice = "Voice 1"
+    selected_voice = "Jessica"
     blocklist = ""
     prodlist = ""
 
@@ -22,7 +22,7 @@ class Settings:
         system_enabled=True,
         camera_enabled=False,
         screen_enabled=False,
-        selected_voice="Voice 1",
+        selected_voice="Jessica",
         blocklist="",
         prodlist=""
     ):
@@ -104,7 +104,7 @@ def _stop_vite():
 
 atexit.register(_stop_vite)
 
-user_settings = Settings(False, False, False)
+user_settings = Settings(False, False, False, selected_voice="Jessica")
 user_profile = Profile("John Smith")
 
 @app.route('/settings', methods=['GET', 'POST'])
@@ -217,12 +217,17 @@ def api_get_settings():
         "camera_enabled":      bool(user_settings.camera_enabled),
         "screen_enabled":      bool(user_settings.screen_enabled),
         # Misc
-        "selected_voice":      user_settings.selected_voice or "Voice 1",
+        "selected_voice":      user_settings.selected_voice or "Jessica",
         "blocklist":           user_settings.blocklist or "",
         "prodlist":            user_settings.prodlist or "",
         # Profile
         "user_name":           user_profile.user_name or "",
     }), 200
+
+
+@app.route('/api/voices', methods=['GET'])
+def api_get_voices():
+    return jsonify(["Jessica", "Sarah", "Harry", "Daniel"]), 200
 
 
 @app.route('/api/settings', methods=['POST'])

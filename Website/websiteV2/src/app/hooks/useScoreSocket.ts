@@ -19,6 +19,8 @@ interface UseScoreSocketOptions {
   onScore: (scores: ScorePayload) => void;
   /** Called every time a log/notification message arrives from the backend. */
   onLog?: (log: LogPayload) => void;
+  /** Called when the backend signals a new audio notification is ready to play. */
+  onAudio?: () => void;
   /** When false the socket is closed and reconnect is suppressed. */
   enabled: boolean;
 }
@@ -32,16 +34,18 @@ const RECONNECT_DELAY_MS = 3000;
  * them to `onScore`.  Automatically reconnects with a 3-second delay on close,
  * matching the behaviour of the original dashboard.js.
  */
-export function useScoreSocket({ onScore, onLog, enabled }: UseScoreSocketOptions) {
+export function useScoreSocket({ onScore, onLog, onAudio, enabled }: UseScoreSocketOptions) {
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Stable refs so the connect closure never becomes stale
   const onScoreRef = useRef(onScore);
   const onLogRef = useRef(onLog);
+  const onAudioRef = useRef(onAudio);
   const enabledRef = useRef(enabled);
   onScoreRef.current = onScore;
   onLogRef.current = onLog;
+  onAudioRef.current = onAudio;
   enabledRef.current = enabled;
 
   const cleanup = useCallback(() => {
@@ -71,6 +75,8 @@ export function useScoreSocket({ onScore, onLog, enabled }: UseScoreSocketOption
             hydration: data.hydration ?? 0,
             posture:  data.posture  ?? 0,
           });
+        } else if (data.type === "audio") {
+          onAudioRef.current?.();
         } else if (data.module && data.level && data.simple) {
           onLogRef.current?.({
             module:    data.module,

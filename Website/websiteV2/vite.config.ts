@@ -27,6 +27,11 @@ export default defineConfig({
         target: 'http://localhost:5001',
         changeOrigin: true,
       },
+      // Forward /static/* so audio/assets served by Flask are reachable
+      '/static': {
+        target: 'http://localhost:5001',
+        changeOrigin: true,
+      },
     },
   },
 })
