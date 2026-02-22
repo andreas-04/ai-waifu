@@ -42,7 +42,7 @@ async function share() {
       window.dispatchEvent(event);
     }, "image/jpeg");
 
-  }, 3000);
+  }, 1000);
 }
 
 // Get the input element and the status text element

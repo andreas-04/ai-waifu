@@ -90,6 +90,7 @@ function loadValues()
             console.log(json);  // log it here instead
             document.getElementById("name").value = json.user_name;
             document.getElementById("blocklist").value = json.blocklist;
+            document.getElementById("prodlist").value = json.prodlist;
         });
 }
 

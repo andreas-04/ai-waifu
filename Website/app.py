@@ -4,35 +4,42 @@ import pytesseract
 import os
 import csv
 import json
+import sys
 from datetime import datetime, timedelta
 from collections import Counter
 from transformers import pipeline
 import json
+
+# Add parent directory to path for ws_notifier import
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+from backend.ws_notifier import WsNotifier
 
 class Settings:
     system_enabled = False
     camera_enabled = False
     screen_enabled = False
 
-    track_productivity = True
-    track_focus = True
-    track_hydration = True
-    track_posture = True
+    track_productivity = False
+    track_focus = False
+    track_hydration = False
+    track_posture = False
 
     selected_voice = "Voice 1"
     blocklist = ""
+    prodlist = ""
 
     def __init__(
         self,
         system_enabled=True,
         camera_enabled=False,
         screen_enabled=False,
-        track_productivity=True,
-        track_focus=True,
-        track_hydration=True,
-        track_posture=True,
+        track_productivity=False,
+        track_focus=False,
+        track_hydration=False,
+        track_posture=False,
         selected_voice="Voice 1",
-        blocklist=""
+        blocklist="",
+        prodlist=""
     ):
         self.system_enabled = system_enabled
         self.camera_enabled = camera_enabled
@@ -43,6 +50,7 @@ class Settings:
         self.track_posture = track_posture
         self.selected_voice = selected_voice
         self.blocklist = blocklist
+        self.prodlist = prodlist
 
     def print(self):
         print(self.system_enabled)
@@ -59,10 +67,12 @@ class Settings:
 class Profile:
     user_name = None
     blocklist = ""
+    prodlist = ""
 
-    def __init__(self, user_name=None, blocklist=""):
+    def __init__(self, user_name=None, blocklist="", prodlist=""):
         self.user_name = user_name
         self.blocklist = blocklist
+        self.prodlist = prodlist
 
     def to_dict(self):
         return self.__dict__
@@ -80,9 +90,13 @@ class Statistics:
         self.hydration = hyd
 
 app = Flask(__name__)
+notifier = WsNotifier()
+notifier.start()
 
 user_settings = Settings(True, False, False)
-user_profile = Profile("John Smith", "Instagram, Facebook, YouTube, Reddit, Twitter, X.com, TikTok, Netflix, Twitch")
+user_profile = Profile("John Smith", "Instagram, Facebook, YouTube, Reddit, Twitter, TikTok, Netflix, Social Media", "Work, Programming, Writing, Research, Learning")
+
+upload_request_count = 0
 
 # Get the directory where this app.py file is located
 app_dir = os.path.dirname(os.path.abspath(__file__))
@@ -155,13 +169,17 @@ def get_blocklist():
     raw = ",".join(filter(None, [user_settings.blocklist, user_profile.blocklist]))
     return [item.strip() for item in raw.split(",") if item.strip()]
 
+def get_prodlist():
+    raw = ",".join(filter(None, [user_settings.prodlist, user_profile.prodlist]))
+    return [item.strip() for item in raw.split(",") if item.strip()]
+
 def classify_activity(text):
-    labels = get_blocklist() + ["other"]
+    labels = get_blocklist() + get_prodlist()
     result = classifier(text, candidate_labels=labels)
     return result["labels"][0], float(result["scores"][0])
 
-def activity_to_productivity(activity_label):
-    if activity_label in get_blocklist():
+def activity_to_productivity(activity_label, activity_score):
+    if activity_label in get_blocklist() and activity_score > 0.6:
         return "unproductive"
     return "productive"
 
@@ -277,8 +295,38 @@ def calculate_productivity_score():
         print(f"Error calculating productivity score: {e}")
         return 0
 
+def was_recently_unproductive(window_seconds=30):
+    if not os.path.exists(log_file):
+        return False
+
+    cutoff = datetime.now() - timedelta(seconds=window_seconds)
+    try:
+        with open(log_file, 'r', newline='') as f:
+            reader = csv.DictReader(f)
+            total_count = 0
+            productive_count = 0
+            for row in reader:
+                timestamp = datetime.strptime(row['Timestamp'], "%Y-%m-%d %H:%M:%S")
+                if timestamp < cutoff:
+                    continue
+                total_count += 1
+                if row['ProductivityLabel'] == 'productive':
+                    productive_count += 1
+    except Exception as e:
+        print(f"Error checking recent productivity: {e}")
+        return False
+
+    if total_count == 0:
+        return False
+
+    productivity_pct = (productive_count / total_count) * 100
+    return productivity_pct < 50
+
 @app.route("/upload", methods=["POST"])
 def upload():
+    global upload_request_count
+    upload_request_count += 1
+    
     image = request.files["image"]
        
     # save or OCR here
@@ -296,7 +344,7 @@ def upload():
         f.write(text)
     
     activity_label, activity_score = classify_activity(text)
-    productivity_label = activity_to_productivity(activity_label)
+    productivity_label = activity_to_productivity(activity_label, activity_score)
     productivity_score_value = 1 if productivity_label == "productive" else 0
     now = datetime.now()
     session_id, session_start, session_end = get_session_window(now)
@@ -310,6 +358,20 @@ def upload():
         session_id,
         len(text)
     )
+
+    if upload_request_count % 30 == 0:
+        recently_unproductive = was_recently_unproductive()
+    else:
+        recently_unproductive = False
+        
+    if recently_unproductive:
+        print("⚠️  User has been recently unproductive. Consider sending a nudge or reminder.")
+        notifier.notify(
+            module="focus",
+            level="warning",
+            simple="Low Productivity",
+            detail="⚠️  User productivity has dropped below 50% in the last 30 seconds. Consider taking a break or refocusing."
+        )
 
     # Update session summary and return session score
     productivity_score = update_session_summary(session_id, session_start, session_end)
@@ -353,7 +415,7 @@ def update_settings():
         user_settings.track_posture = data['posture_enabled']
         user_settings.selected_voice = data['voice_selection']
         user_settings.blocklist = data['blocklist']
-
+        user_settings.prodlist = data['prodlist']
         user_settings.camera_enabled = data['camera_enabled']
         user_settings.screen_enabled = data['screen_enabled']
 
@@ -370,8 +432,8 @@ def update_profile():
 
     user_profile.user_name = data['name']
     user_profile.blocklist = data['blocklist']
-
+    user_profile.prodlist = data['prodlist']
     return "", 200
 
 if __name__ == '__main__':
-    app.run()
+    app.run(port=5001)
