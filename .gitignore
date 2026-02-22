@@ -4,7 +4,7 @@
 */__pycache__/
 *.cpyt
 *.env
-.venv/
+**/node_modules/
 frame.jpg
 text.txt
 *.csv

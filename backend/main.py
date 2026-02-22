@@ -146,11 +146,19 @@ if __name__ == "__main__":
         "--no-focus", action="store_true",
         help="Disable the focus tracker",
     )
+    parser.add_argument(
+        "--no-posture", action="store_true",
+        help="Disable the posture monitor",
+    )
+    parser.add_argument(
+        "--no-hydration", action="store_true",
+        help="Disable the hydration tracker",
+    )
     args = parser.parse_args()
 
-    enable_posture  = not args.hydration_only and not args.focus_only
-    enable_hydration = not args.posture_only  and not args.focus_only
-    enable_focus    = not args.no_focus       and not args.posture_only and not args.hydration_only
+    enable_posture   = not args.no_posture   and not args.hydration_only and not args.focus_only
+    enable_hydration = not args.no_hydration and not args.posture_only   and not args.focus_only
+    enable_focus     = not args.no_focus     and not args.posture_only   and not args.hydration_only
 
     try:
         main(
