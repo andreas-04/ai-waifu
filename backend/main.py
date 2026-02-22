@@ -3,13 +3,15 @@
 AI-Waifu backend — combined runner.
 
 Shares a single cv2.VideoCapture (via CameraManager) between:
-  • PostureMonitor  — bad-posture detection & desktop notifications
+  • PostureMonitor   — bad-posture detection & desktop notifications
   • HydrationTracker — sip detection & desktop notifications
+  • FocusTracker     — head pose, gaze direction & face-presence monitoring
 
 Run:
-    python main.py [--debug] [--camera N] [--no-yolo]
+    python main.py [--debug] [--camera N]
     python main.py --posture-only [--debug]
-    python main.py --hydration-only [--debug] [--no-yolo]
+    python main.py --hydration-only [--debug]
+    python main.py --focus-only [--debug]
 """
 
 import argparse
@@ -30,36 +32,41 @@ sys.path.insert(0, os.path.join(_HERE, "focus"))
 from posture_monitor import PostureMonitor          # noqa: E402
 from hydration_tracker import HydrationTracker      # noqa: E402
 from focus_tracker import FocusTracker              # noqa: E402
+from ws_notifier import WsNotifier                  # noqa: E402
 
 
 def main(
     debug: bool = False,
     camera_index: int = 0,
-    use_yolo: bool = True,
     enable_posture: bool = True,
     enable_hydration: bool = True,
     enable_focus: bool = True,
 ) -> None:
     modules: list = []
 
+    # ── Start WebSocket / SSE notification server ─────────────────────────────
+    notifier = WsNotifier()
+    notifier.start()
+
     # ── Instantiate and open modules ─────────────────────────────────────────
     if enable_posture:
-        posture = PostureMonitor(debug=debug)
+        posture = PostureMonitor(debug=debug, notifier=notifier)
         posture.open()
         modules.append(posture)
 
     if enable_hydration:
-        hydration = HydrationTracker(debug=debug, use_yolo=use_yolo)
+        hydration = HydrationTracker(debug=debug, notifier=notifier)
         hydration.open()
         modules.append(hydration)
 
     if enable_focus:
-        focus = FocusTracker(debug=debug)
+        focus = FocusTracker(debug=debug, notifier=notifier)
         focus.open()
         modules.append(focus)
 
     if not modules:
         print("⚠️  No modules enabled — exiting.")
+        notifier.stop()
         return
 
     # ── Single shared camera ──────────────────────────────────────────────────
@@ -78,6 +85,7 @@ def main(
         cam.stop()
         for mod in modules:
             mod.close()
+        notifier.stop()
 
 
 if __name__ == "__main__":
@@ -91,10 +99,6 @@ if __name__ == "__main__":
     parser.add_argument(
         "--camera", type=int, default=0,
         help="Camera index (default: 0)",
-    )
-    parser.add_argument(
-        "--no-yolo", action="store_true",
-        help="Disable YOLO for hydration tracker; use contour fallback",
     )
     parser.add_argument(
         "--posture-only", action="store_true",
@@ -122,7 +126,6 @@ if __name__ == "__main__":
         main(
             debug=args.debug,
             camera_index=args.camera,
-            use_yolo=not args.no_yolo,
             enable_posture=enable_posture,
             enable_hydration=enable_hydration,
             enable_focus=enable_focus,

@@ -341,8 +341,9 @@ class PostureMonitor:
 
     SMOOTHING_WINDOW = 5
 
-    def __init__(self, debug: bool = False):
+    def __init__(self, debug: bool = False, notifier=None):
         self.debug = debug
+        self._notifier = notifier
         self._detector = None
 
         # calibration
@@ -528,10 +529,15 @@ class PostureMonitor:
                             and now - self._last_notification_time >= NOTIFICATION_COOLDOWN_S
                         ):
                             issue_str = ", ".join(issues)
-                            print(f"⚠️  Bad posture for {BAD_POSTURE_NOTIFY_S:.0f}s: {issue_str}")
+                            detail = f"⚠️  Bad posture for {BAD_POSTURE_NOTIFY_S:.0f}s: {issue_str}"
+                            print(detail)
                             send_notification(
                                 "Posture Alert 🪑", f"Fix your posture! ({issue_str})"
                             )
+                            if self._notifier:
+                                self._notifier.notify(
+                                    "posture", "warning", "Bad posture", detail
+                                )
                             self._last_notification_time = now
                     else:
                         self._bad_posture_start = None

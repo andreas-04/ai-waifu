@@ -1,3 +1,5 @@
 *.png
 *.task
 *.pt
+*/__pycache__/
+*.cpyt

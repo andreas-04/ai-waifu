@@ -2,12 +2,12 @@
 """
 Hydration Tracker — multi-signal sip detection via webcam.
 
-Tech stack: OpenCV · MediaPipe Hands · MediaPipe Face Mesh · Ultralytics YOLO · NumPy
-Run:  python hydration_tracker.py [--debug] [--no-yolo]
+Tech stack: OpenCV · MediaPipe Hands · MediaPipe Face Mesh · NumPy
+Run:  python hydration_tracker.py [--debug]
 
-Signals (≥2 must co-fire within a ~2 s gesture window to confirm a sip):
+Signals (all 3 must co-fire within a ~2 s gesture window to confirm a sip):
   1. Wrist Visible             — MediaPipe Hands detects a wrist in the frame
-  2. Object Near Mouth          — YOLOv8n bottle/cup detection (or contour fallback)
+  2. Object Near Mouth          — Contour-based detection near the mouth ROI
   3. Head Tilt (backward)       — Face Mesh nose-chin pitch estimation
 """
 
@@ -26,14 +26,6 @@ import cv2
 import numpy as np
 import mediapipe as mp
 
-# ── Optional YOLO import ─────────────────────
-try:
-    from ultralytics import YOLO
-
-    YOLO_AVAILABLE = True
-except ImportError:
-    YOLO_AVAILABLE = False
-
 # ──────────────────────────────────────────────
 # Configuration
 # ──────────────────────────────────────────────
@@ -41,14 +33,11 @@ CALIBRATION_DURATION_S = 3.0          # seconds to average neutral head-tilt rat
 HEAD_TILT_THRESHOLD_DEG = 10.0        # backward tilt from baseline to fire signal
 SIP_GESTURE_WINDOW_S = 2.0           # signals must co-occur within this window
 SIP_COOLDOWN_S = 10.0                # minimum seconds between counted sips
+SIP_REMINDER_S = 600.0               # notify if no sip detected within this window (10 min)
 SIGNAL_REQUIRED_COUNT = 3            # minimum signals for sip confirmation
 
-# YOLO
-YOLO_CONFIDENCE = 0.40
-YOLO_CLASSES = {39: "bottle", 41: "cup"}   # COCO class IDs
+# Contour-based object detection (Signal 2)
 MOUTH_ROI_EXPAND_PX = 100                  # expand mouth bbox for proximity check
-
-# Contour-based fallback (Signal 2 without YOLO)
 CONTOUR_MIN_AREA = 500
 CONTOUR_MAX_AREA = 50_000
 
@@ -117,43 +106,9 @@ def check_wrist_visible(hand_landmarks_list: list) -> bool:
 
 
 # ──────────────────────────────────────────────
-# Signal 2a — Object Near Mouth (YOLO)
+# Signal 2 — Object Near Mouth
 # ──────────────────────────────────────────────
-def check_object_near_mouth_yolo(
-    yolo_model, frame: np.ndarray, face_landmarks,
-    frame_w: int, frame_h: int,
-) -> bool:
-    """Run YOLOv8n and check for bottle/cup overlapping the mouth ROI."""
-    if yolo_model is None or face_landmarks is None:
-        return False
-
-    upper_lip = face_landmarks[FM_UPPER_LIP]
-    lower_lip = face_landmarks[FM_LOWER_LIP]
-    mouth_cx = int((upper_lip.x + lower_lip.x) / 2.0 * frame_w)
-    mouth_cy = int((upper_lip.y + lower_lip.y) / 2.0 * frame_h)
-
-    roi_x1 = max(0, mouth_cx - MOUTH_ROI_EXPAND_PX)
-    roi_y1 = max(0, mouth_cy - MOUTH_ROI_EXPAND_PX)
-    roi_x2 = min(frame_w, mouth_cx + MOUTH_ROI_EXPAND_PX)
-    roi_y2 = min(frame_h, mouth_cy + MOUTH_ROI_EXPAND_PX)
-
-    results = yolo_model(frame, conf=YOLO_CONFIDENCE, verbose=False)
-    for result in results:
-        for box in result.boxes:
-            cls_id = int(box.cls[0])
-            if cls_id not in YOLO_CLASSES:
-                continue
-            bx1, by1, bx2, by2 = box.xyxy[0].cpu().numpy().astype(int)
-            # Check rectangle overlap
-            if bx1 < roi_x2 and bx2 > roi_x1 and by1 < roi_y2 and by2 > roi_y1:
-                return True
-    return False
-
-
-# ──────────────────────────────────────────────
-# Signal 2b — Object Near Mouth (contour fallback)
-# ──────────────────────────────────────────────
-def check_object_near_mouth_contour(
+def check_object_near_mouth(
     frame: np.ndarray, face_landmarks, frame_w: int, frame_h: int,
 ) -> bool:
     """Contour-based heuristic: look for a sizeable object near the mouth."""
@@ -436,20 +391,19 @@ class HydrationTracker:
 
     Lifecycle
     ---------
-        tracker = HydrationTracker(debug=True, use_yolo=True)
-        tracker.open()                      # load MediaPipe + YOLO models
+        tracker = HydrationTracker(debug=True)
+        tracker.open()                      # load MediaPipe models
         camera_manager.register(tracker.on_frame)
         # ... run camera loop ...
         tracker.close()                     # release MediaPipe + print summary
     """
 
-    def __init__(self, debug: bool = False, use_yolo: bool = True):
+    def __init__(self, debug: bool = False, notifier=None):
         self.debug = debug
-        self.use_yolo = use_yolo
+        self._notifier = notifier
 
         self._hand_detector = None
         self._face_detector = None
-        self._yolo_model = None
 
         # calibration
         self._calibrated = False
@@ -464,6 +418,7 @@ class HydrationTracker:
         self._signals = SignalState()
         self._sip_count = 0
         self._last_sip_time = 0.0
+        self._last_sip_reminder_time = 0.0
         self._sip_log: list[dict] = []
         self._session_start = datetime.now()
         self._tilt_deg = 0.0
@@ -473,8 +428,7 @@ class HydrationTracker:
     # ── Setup / teardown ──────────────────────────────────────────────────────
 
     def open(self) -> None:
-        """Load MediaPipe and (optionally) YOLO models.  Call once before
-        registering on_frame."""
+        """Load MediaPipe models.  Call once before registering on_frame."""
         script_dir = os.path.dirname(os.path.abspath(__file__))
 
         hand_model = os.path.join(script_dir, "hand_landmarker.task")
@@ -511,16 +465,6 @@ class HydrationTracker:
                 min_tracking_confidence=0.5,
             )
         )
-
-        if self.use_yolo and YOLO_AVAILABLE:
-            try:
-                self._yolo_model = YOLO("yolov8n.pt")
-                print("✅ YOLOv8n loaded for bottle/cup detection")
-            except Exception as exc:
-                print(f"⚠️  YOLO failed to load ({exc}); falling back to contour detection")
-        elif self.use_yolo and not YOLO_AVAILABLE:
-            print("⚠️  ultralytics not installed — using contour fallback for Signal 2")
-            print("   Install with: pip install ultralytics")
 
         print("╔══════════════════════════════════════════╗")
         print("║    Hydration Tracker — Sip Detection     ║")
@@ -608,6 +552,7 @@ class HydrationTracker:
                     self._baseline_tilt_ratio = float(np.mean(self._cal_samples))
                     self._calibrated = True
                     self._calibrating = False
+                    self._last_sip_reminder_time = time.time()  # start reminder clock
                     print(f"\n✅ Hydration calibration complete ({len(self._cal_samples)} samples)")
                     print(f"   Baseline nose-ratio: {self._baseline_tilt_ratio:.4f}")
                     if not self.debug:
@@ -634,12 +579,7 @@ class HydrationTracker:
                 self._signals.wrist_visible = False
 
             # Signal 2 — object near mouth
-            if self._yolo_model is not None:
-                obj = check_object_near_mouth_yolo(
-                    self._yolo_model, frame, face, frame_w, frame_h
-                )
-            else:
-                obj = check_object_near_mouth_contour(frame, face, frame_w, frame_h)
+            obj = check_object_near_mouth(frame, face, frame_w, frame_h)
             if obj:
                 self._signals.object_near_mouth = True
                 self._signals.object_near_mouth_time = now
@@ -661,13 +601,38 @@ class HydrationTracker:
             ):
                 self._sip_count += 1
                 self._last_sip_time = now
+                self._last_sip_reminder_time = now
                 active = self._signals.active_labels(now)
                 self._signals.reset()
-                print(f"💧 Sip #{self._sip_count} detected!  Signals: {', '.join(active)}")
+                detail = f"💧 Sip #{self._sip_count} detected!  Signals: {', '.join(active)}"
+                print(detail)
                 self._sip_log.append({"time": datetime.now(), "signals": list(active)})
                 send_notification(
                     "Hydration Tracker 💧", f"Sip #{self._sip_count} recorded!"
                 )
+                if self._notifier:
+                    self._notifier.notify(
+                        "hydration", "info", "Sip detected", detail
+                    )
+
+            # ── Reminder if no sip for SIP_REMINDER_S ────────────────────────
+            reminder_ref = self._last_sip_time if self._last_sip_time > 0 else self._last_sip_reminder_time
+            if (
+                reminder_ref > 0
+                and (now - reminder_ref) >= SIP_REMINDER_S
+            ):
+                idle_min = int((now - reminder_ref) / 60)
+                detail = f"🚰 No sip detected for {idle_min} min — drink some water!"
+                print(detail)
+                send_notification(
+                    "Hydration Reminder 🚰",
+                    f"You haven't sipped in {idle_min} min — drink some water!",
+                )
+                if self._notifier:
+                    self._notifier.notify(
+                        "hydration", "warning", f"No sip in {idle_min} mins", detail
+                    )
+                self._last_sip_reminder_time = now
 
             draw_overlay(
                 frame, self._signals, self._sip_count,
@@ -716,14 +681,14 @@ class HydrationTracker:
 # ──────────────────────────────────────────────
 # Standalone entry point
 # ──────────────────────────────────────────────
-def main(debug: bool = False, camera_index: int = 0, use_yolo: bool = True) -> None:
+def main(debug: bool = False, camera_index: int = 0) -> None:
     """Run HydrationTracker standalone (owns its own CameraManager)."""
     _backend = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     if _backend not in sys.path:
         sys.path.insert(0, _backend)
     from camera_manager import CameraManager
 
-    tracker = HydrationTracker(debug=debug, use_yolo=use_yolo)
+    tracker = HydrationTracker(debug=debug)
     tracker.open()
 
     cam = CameraManager(camera_index=camera_index)
@@ -748,14 +713,10 @@ if __name__ == "__main__":
         "--camera", type=int, default=0,
         help="Camera index (default: 0)",
     )
-    parser.add_argument(
-        "--no-yolo", action="store_true",
-        help="Disable YOLO object detection; use contour fallback for Signal 2",
-    )
     args = parser.parse_args()
 
     try:
-        main(debug=args.debug, camera_index=args.camera, use_yolo=not args.no_yolo)
+        main(debug=args.debug, camera_index=args.camera)
     except KeyboardInterrupt:
         print("\n\n👋 Hydration tracker stopped.")
 
