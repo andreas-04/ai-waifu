@@ -1,18 +1,9 @@
-from flask import Flask, request, render_template, jsonify
-import cv2
-import pytesseract
 import os
-import csv
-import json
+import signal
+import subprocess
 import sys
-from datetime import datetime, timedelta
-from collections import Counter
-from transformers import pipeline
-import json
 
-# Add parent directory to path for ws_notifier import
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-from backend.ws_notifier import WsNotifier
+from flask import Flask, jsonify, request, render_template, redirect, url_for
 
 class Settings:
     system_enabled = False
@@ -90,8 +81,10 @@ class Statistics:
         self.hydration = hyd
 
 app = Flask(__name__)
-notifier = WsNotifier()
-notifier.start()
+
+# Absolute path to backend/main.py (one level up from Website/)
+_BACKEND_MAIN = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "backend", "main.py")
+_backend_proc: subprocess.Popen | None = None
 
 user_settings = Settings(True, False, False)
 user_profile = Profile("John Smith", "Instagram, Facebook, YouTube, Reddit, Twitter, TikTok, Netflix, Social Media", "Work, Programming, Writing, Research, Learning")
@@ -426,13 +419,90 @@ def update_settings():
 
 @app.route('/update_profile', methods=['POST'])
 def update_profile():
-    
-    data = json.loads(request.data)
+    user_profile.user_name = request.form.get("name")
+    user_profile.user_job = request.form.get("job_title")
+    user_profile.user_project = request.form.get("project_desc")
 
-    user_profile.user_name = data['name']
-    user_profile.blocklist = data['blocklist']
-    user_profile.prodlist = data['prodlist']
-    return "", 200
+    return redirect(url_for("settings"))
+
+
+# ── Camera service control ────────────────────────────────────────────────────
+
+@app.route('/api/backend/start', methods=['POST'])
+def backend_start():
+    global _backend_proc
+    if _backend_proc is not None and _backend_proc.poll() is None:
+        return jsonify({"status": "already_running", "pid": _backend_proc.pid}), 200
+    _backend_proc = subprocess.Popen(
+        [sys.executable, _BACKEND_MAIN],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    return jsonify({"status": "started", "pid": _backend_proc.pid}), 200
+
+
+@app.route('/api/backend/stop', methods=['POST'])
+def backend_stop():
+    global _backend_proc
+    if _backend_proc is None or _backend_proc.poll() is not None:
+        _backend_proc = None
+        return jsonify({"status": "not_running"}), 200
+    try:
+        # Send SIGINT (Ctrl+C) so the backend shuts down gracefully
+        _backend_proc.send_signal(signal.SIGINT)
+        _backend_proc.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        _backend_proc.kill()
+    _backend_proc = None
+    return jsonify({"status": "stopped"}), 200
+
+
+@app.route('/api/backend/status', methods=['GET'])
+def backend_status():
+    running = _backend_proc is not None and _backend_proc.poll() is None
+    pid = _backend_proc.pid if running else None
+    return jsonify({"running": running, "pid": pid}), 200
+
+
+
+# ── Camera service control ────────────────────────────────────────────────────
+
+@app.route('/api/backend/start', methods=['POST'])
+def backend_start():
+    global _backend_proc
+    if _backend_proc is not None and _backend_proc.poll() is None:
+        return jsonify({"status": "already_running", "pid": _backend_proc.pid}), 200
+    _backend_proc = subprocess.Popen(
+        [sys.executable, _BACKEND_MAIN],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    return jsonify({"status": "started", "pid": _backend_proc.pid}), 200
+
+
+@app.route('/api/backend/stop', methods=['POST'])
+def backend_stop():
+    global _backend_proc
+    if _backend_proc is None or _backend_proc.poll() is not None:
+        _backend_proc = None
+        return jsonify({"status": "not_running"}), 200
+    try:
+        # Send SIGINT (Ctrl+C) so the backend shuts down gracefully
+        _backend_proc.send_signal(signal.SIGINT)
+        _backend_proc.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        _backend_proc.kill()
+    _backend_proc = None
+    return jsonify({"status": "stopped"}), 200
+
+
+@app.route('/api/backend/status', methods=['GET'])
+def backend_status():
+    running = _backend_proc is not None and _backend_proc.poll() is None
+    pid = _backend_proc.pid if running else None
+    return jsonify({"running": running, "pid": pid}), 200
+
 
 if __name__ == '__main__':
+    app.run(port=5001)
     app.run(port=5001)

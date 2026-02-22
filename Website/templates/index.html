@@ -6,6 +6,18 @@
 {% block content %}
 
 <div class="container-fluid mt-4">
+
+  <!-- Start / Stop button -->
+  <div class="row mb-3">
+    <div class="col-12 text-center">
+      <button id="backend-btn" class="btn btn-lg px-5"
+              style="background-color:var(--identity-primary);color:#fff;border:1px solid var(--identity-accent);border-radius:10px;">
+        ▶ Start
+      </button>
+      <span id="backend-status" class="ms-3 text-muted" style="font-size:0.9rem;"></span>
+    </div>
+  </div>
+
   <div class="row">
 
     <!-- LEFT HALF -->
@@ -194,6 +206,86 @@
     </div>
   </div>
 </div>
+
+<script>
+(function () {
+  const btn    = document.getElementById('backend-btn');
+  const status = document.getElementById('backend-status');
+
+  function setRunning(running) {
+    if (running) {
+      btn.textContent = '⏹ Stop';
+      btn.style.backgroundColor = 'var(--identity-accent)';
+      status.textContent = 'Backend running';
+    } else {
+      btn.textContent = '▶ Start';
+      btn.style.backgroundColor = 'var(--identity-primary)';
+      status.textContent = 'Backend stopped';
+    }
+  }
+
+  // Check current state on page load
+  fetch('/api/backend/status')
+    .then(r => r.json())
+    .then(d => setRunning(d.running))
+    .catch(() => {});
+
+  btn.addEventListener('click', async () => {
+    btn.disabled = true;
+    const current = await fetch('/api/backend/status').then(r => r.json());
+    if (current.running) {
+      await fetch('/api/backend/stop', { method: 'POST' });
+      disconnectScoreSocket();
+      setRunning(false);
+    } else {
+      const res = await fetch('/api/backend/start', { method: 'POST' }).then(r => r.json());
+      connectScoreSocket();
+      setRunning(res.status === 'started' || res.status === 'already_running');
+    }
+    btn.disabled = false;
+  });
+}());
+</script>
+
+<script>
+(function () {
+  const btn    = document.getElementById('backend-btn');
+  const status = document.getElementById('backend-status');
+
+  function setRunning(running) {
+    if (running) {
+      btn.textContent = '⏹ Stop';
+      btn.style.backgroundColor = 'var(--identity-accent)';
+      status.textContent = 'Backend running';
+    } else {
+      btn.textContent = '▶ Start';
+      btn.style.backgroundColor = 'var(--identity-primary)';
+      status.textContent = 'Backend stopped';
+    }
+  }
+
+  // Check current state on page load
+  fetch('/api/backend/status')
+    .then(r => r.json())
+    .then(d => setRunning(d.running))
+    .catch(() => {});
+
+  btn.addEventListener('click', async () => {
+    btn.disabled = true;
+    const current = await fetch('/api/backend/status').then(r => r.json());
+    if (current.running) {
+      await fetch('/api/backend/stop', { method: 'POST' });
+      disconnectScoreSocket();
+      setRunning(false);
+    } else {
+      const res = await fetch('/api/backend/start', { method: 'POST' }).then(r => r.json());
+      connectScoreSocket();
+      setRunning(res.status === 'started' || res.status === 'already_running');
+    }
+    btn.disabled = false;
+  });
+}());
+</script>
 
 {% endblock %}
 {% block scripts %}
