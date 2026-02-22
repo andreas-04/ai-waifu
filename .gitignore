@@ -1,7 +1,7 @@
 *.png
 *.task
 *.pt
-*/__pycache__/
+__pycache__/
 *.cpyt
 *.env
 **/node_modules/
