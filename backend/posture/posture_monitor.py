@@ -415,6 +415,20 @@ class PostureMonitor:
             generate_posture_report(self._posture_log, self._session_start)
         print("\n👋 PostureMonitor closed.")
 
+    # ── Score ─────────────────────────────────────────────────────────────────
+
+    def get_score(self) -> int:
+        """
+        Return a 0-100 posture quality score over the full session lifetime.
+
+        = (good-posture frames / total frames) × 100.
+        Returns 100 (neutral) while calibrating or before any data.
+        """
+        if not self._calibrated or not self._posture_log:
+            return 100
+        good = sum(1 for e in self._posture_log if e["is_good"])
+        return int(good / len(self._posture_log) * 100)
+
     # ── Frame callback ────────────────────────────────────────────────────────
 
     def on_frame(self, frame: np.ndarray, ts_ms: int) -> None:

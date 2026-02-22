@@ -34,7 +34,7 @@ HEAD_TILT_THRESHOLD_DEG = 10.0        # backward tilt from baseline to fire sign
 SIP_GESTURE_WINDOW_S = 2.0           # signals must co-occur within this window
 SIP_COOLDOWN_S = 10.0                # minimum seconds between counted sips
 SIP_REMINDER_S = 600.0               # notify if no sip detected within this window (10 min)
-SIGNAL_REQUIRED_COUNT = 3            # minimum signals for sip confirmation
+SIGNAL_REQUIRED_COUNT = 2            # minimum signals for sip confirmation
 
 # Contour-based object detection (Signal 2)
 MOUTH_ROI_EXPAND_PX = 100                  # expand mouth bbox for proximity check
@@ -488,6 +488,24 @@ class HydrationTracker:
         self._print_summary()
         if self._sip_log:
             generate_hydration_report(self._sip_log, self._session_start)
+
+    # ── Score ─────────────────────────────────────────────────────────────────
+
+    def get_score(self) -> int:
+        """
+        Return a 0-100 hydration score.
+
+        Decays linearly from 100 → 0 as time since last sip approaches
+        SIP_REMINDER_S (10 min). Returns 100 while calibrating or at
+        session start before any sip is expected.
+        """
+        if not self._calibrated:
+            return 100
+        now = time.time()
+        ref = self._last_sip_time if self._last_sip_time > 0 else self._last_sip_reminder_time
+        if ref == 0:
+            return 100
+        return max(0, min(100, 100 - int((now - ref) / SIP_REMINDER_S * 100)))
 
     # ── Frame callback ────────────────────────────────────────────────────────
 

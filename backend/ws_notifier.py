@@ -101,6 +101,36 @@ class WsNotifier:
         })
         asyncio.run_coroutine_threadsafe(self._broadcast(payload), self._loop)
 
+    def notify_scores(
+        self,
+        posture:   int | None,
+        hydration: int | None,
+        focus:     int | None,
+    ) -> None:
+        """
+        Broadcast a periodic score snapshot to all connected clients.
+
+        JSON shape
+        ----------
+        {
+          "type":      "score",
+          "posture":   85,
+          "hydration": 60,
+          "focus":     70,
+          "timestamp": 1740192000.123
+        }
+        """
+        if self._loop is None or not self._loop.is_running():
+            return
+        payload = json.dumps({
+            "type":      "score",
+            "posture":   posture,
+            "hydration": hydration,
+            "focus":     focus,
+            "timestamp": time.time(),
+        })
+        asyncio.run_coroutine_threadsafe(self._broadcast(payload), self._loop)
+
     # ── Async internals (run inside the background event loop) ───────────────
 
     async def _broadcast(self, payload: str) -> None:

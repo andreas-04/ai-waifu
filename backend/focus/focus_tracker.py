@@ -447,6 +447,20 @@ class FocusTracker:
             generate_focus_report(self._focus_log, self._session_start)
         print("\n👋 FocusTracker closed.")
 
+    # ── Score ─────────────────────────────────────────────────────────────────
+
+    def get_score(self) -> int:
+        """
+        Return a 0-100 focus score over the full session lifetime.
+
+        = (focused frames / total frames) × 100.
+        Returns 100 (neutral) when there is no data yet.
+        """
+        if not self._focus_log:
+            return 100
+        focused = sum(1 for e in self._focus_log if e["is_focused"])
+        return int(focused / len(self._focus_log) * 100)
+
     # ── Frame callback ────────────────────────────────────────────────────────
 
     def on_frame(self, frame: np.ndarray, ts_ms: int) -> None:

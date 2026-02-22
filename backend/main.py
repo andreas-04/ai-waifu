@@ -17,6 +17,7 @@ Run:
 import argparse
 import sys
 import os
+import threading
 
 # Allow sibling-package imports (posture/, hydration/)
 _HERE = os.path.dirname(os.path.abspath(__file__))
@@ -35,6 +36,18 @@ from focus_tracker import FocusTracker              # noqa: E402
 from ws_notifier import WsNotifier                  # noqa: E402
 
 
+def _score_reporter(
+    posture_mod, hydration_mod, focus_mod,
+    notifier, interval: int, stop_evt: threading.Event,
+) -> None:
+    """Broadcast a score snapshot every *interval* seconds until stopped."""
+    while not stop_evt.wait(interval):
+        p = posture_mod.get_score()   if posture_mod   else None
+        h = hydration_mod.get_score() if hydration_mod else None
+        f = focus_mod.get_score()     if focus_mod     else None
+        notifier.notify_scores(p, h, f)
+
+
 def main(
     debug: bool = False,
     camera_index: int = 0,
@@ -49,6 +62,8 @@ def main(
     notifier.start()
 
     # ── Instantiate and open modules ─────────────────────────────────────────
+    posture = hydration = focus = None
+
     if enable_posture:
         posture = PostureMonitor(debug=debug, notifier=notifier)
         posture.open()
@@ -77,6 +92,13 @@ def main(
     print(f"\n🚀 Running {len(modules)} module(s) on camera {camera_index}…")
     print("   Press Ctrl+C to stop.\n")
 
+    _stop_scores = threading.Event()
+    threading.Thread(
+        target=_score_reporter,
+        args=(posture, hydration, focus, notifier, 10, _stop_scores),
+        daemon=True, name="ScoreReporter",
+    ).start()
+
     try:
         cam.start()   # blocks until stop() or KeyboardInterrupt
     except KeyboardInterrupt:
@@ -85,6 +107,7 @@ def main(
         cam.stop()
         for mod in modules:
             mod.close()
+        _stop_scores.set()
         notifier.stop()
 
 
