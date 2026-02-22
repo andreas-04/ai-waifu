@@ -12,11 +12,12 @@ class Settings:
     track_posture = True
 
     selected_voice = "Voice 1"
+    blocklist = ""
 
-    def __init__(self, system, camera, screen):
-        self.system_enabled = system
-        self.camera_enabled = camera
-        self.screen_enabled = screen
+    def __init__(self):
+        self.system_enabled = True
+        self.camera_enabled = False
+        self.screen_enabled = False
 
     def print(self):
         print(self.system_enabled)
@@ -32,13 +33,14 @@ class Settings:
 
 class Profile:
     user_name = None
-    user_job = None
-    user_project = None
+    blocklist = ""
 
-    def __init__(self, name, job, project):
-        self.user_name = name
-        self.user_job = job
-        self.user_project = project
+    def __init__(self):
+        self.user_name = None
+        self.blocklist = ""
+
+    def to_dict(self):
+        return self.__dict__
 
 class Statistics:
     productivity = 0
@@ -54,17 +56,8 @@ class Statistics:
 
 app = Flask(__name__)
 
-user_settings = Settings(True, False, False)
-user_profile = Profile("John Smith", "Software Engineer", "Making Github 2")
-
-#@app.route('/settings', methods=['GET', 'POST'])
-#def settings():
-#    global user_settings, user_profile
-#
-#    return render_template(
-#        "settings.html", 
-#        user_settings=user_settings,
-#        user_profile=user_profile)
+user_settings = Settings()
+user_profile = Profile()
 
 @app.route('/', methods=['GET'])
 def index():
@@ -74,10 +67,13 @@ def index():
 def get_settings():
     return jsonify(user_settings.to_dict())
 
+@app.route('/get_profile', methods=['GET'])
+def get_profile():
+    return jsonify(user_profile.to_dict())
+
 @app.route('/update_settings', methods=['POST'])
 def update_settings():
     data = json.loads(request.data)
-    print(data)
 
     try:
         user_settings.system_enabled = data['system_enabled']
@@ -86,12 +82,12 @@ def update_settings():
         user_settings.track_hydration = data['hydration_enabled']
         user_settings.track_posture = data['posture_enabled']
         user_settings.selected_voice = data['voice_selection']
+        user_settings.blocklist = data['blocklist']
 
         user_settings.camera_enabled = data['camera_enabled']
         user_settings.screen_enabled = data['screen_enabled']
 
     except:
-        print("BAH")
         return "", 200
 
     return "", 200
@@ -102,8 +98,7 @@ def update_profile():
     data = json.loads(request.data)
 
     user_profile.user_name = data['name']
-    user_profile.user_job = data['job_title']
-    user_profile.user_project = data['project_desc']
+    user_profile.blocklist = data['blocklist']
 
     return "", 200
 

@@ -31,6 +31,10 @@ body {
     margin: 0 auto;
 }
 
+.blocklist {
+    resize: none;
+}
+
 .form-switch .form-check-input {
     transform: scale(1.5);
     margin-right: 0.75rem;
