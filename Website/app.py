@@ -3,6 +3,7 @@ import cv2
 import pytesseract
 import os
 import csv
+import json
 from datetime import datetime
 from transformers import pipeline
 
@@ -56,8 +57,12 @@ def login():
 @app.route("/upload", methods=["POST"])
 def upload():
     image = request.files["image"]
-    categories = request.form.get("categories")
-    categories_list = eval(categories)  # Convert JSON string to list
+    categories_json = request.form.get("categories", '["productive", "unproductive"]')
+    
+    try:
+        categories_list = json.loads(categories_json)
+    except json.JSONDecodeError:
+        categories_list = ["productive", "unproductive"]
     
     # save or OCR here
     frame_path = os.path.join(app_dir, "frame.jpg")
