@@ -20,6 +20,18 @@ class Profile:
         user_job = job
         user_project = project
 
+class Statistics:
+    productivity = 0
+    focus = 0
+    posture = 0
+    hydration = 0
+
+    def __init__(self, prod, foc, pos, hyd):
+        productivity = prod
+        focus = foc
+        posture = pos
+        hydration = hyd
+
 app = Flask(__name__)
 
 user_settings = Settings(False, False, False)
@@ -44,7 +56,7 @@ def update_settings():
     user_settings.camera_enabled = request.form.get("camera_enabled")
     user_settings.screen_enabled = request.form.get("screen_enabled")
 
-    return redirect(url_for("index"))
+    return redirect(url_for("settings"))
 
 
 @app.route('/update_profile', methods=['POST'])
@@ -53,7 +65,7 @@ def update_profile():
     user_profile.user_job = request.form.get("job_title")
     user_profile.user_project = request.form.get("project_desc")
 
-    return redirect(url_for("index"))
+    return redirect(url_for("settings"))
 
 if __name__ == '__main__':
     app.run()
