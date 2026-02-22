@@ -8,6 +8,8 @@
 }
 
 body {
+    background-image: url(https://images.unsplash.com/photo-1479030574009-1e48577746e8?q=80&w=2070&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D);
+    background-size: cover;
     background-color: var(--background-color);
     height: 100%;
 }
@@ -44,8 +46,9 @@ body {
     font-size: 1.25rem;
 }
 
-.custom-navbar {
+.custom-navbar, .custom-footer{
     background-color: var(--identity-primary);
+    opacity: 0.9;
 }
 
 .nav-link, .navbar-brand {
@@ -78,4 +81,17 @@ input[type="number"] {
     position: absolute;
     left: 50%;
     transform: translateX(-50%);
+}
+
+#backend-status {
+  color: #fff;
+  background-color: var(--identity-secondary);
+  padding: 6px 12px;
+  border-radius: 6px;
+  display: inline-block;
+  font-weight: 500;
+}
+
+.custom-button {
+    margin: 3px;
 }

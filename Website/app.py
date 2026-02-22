@@ -6,7 +6,7 @@ import shutil
 import subprocess
 import sys
 
-from flask import Flask, jsonify, request, render_template, redirect, url_for
+from flask import Flask, jsonify, request, render_template, redirect, url_for, send_file, abort
 
 class Settings:
     system_enabled = False
@@ -247,6 +247,24 @@ def api_update_profile():
     data = request.get_json(force=True) or {}
     user_profile.user_name = data.get("name", user_profile.user_name)
     return jsonify({"status": "ok"}), 200
+
+@app.route('/audio')
+def audio():
+    # Get the file parameter from query string
+    file = request.args.get('source')
+
+    if not file:
+        return "No file specified", 400
+
+    # Construct the file path (adjust your directory as needed)
+    file_path = os.path.join('./static/audio', file)
+
+    # Check if file exists
+    if not os.path.exists(file_path):
+        return "File not found", 404
+
+    # Return the MP3 file
+    return send_file(file_path, mimetype='audio/mpeg', as_attachment=False)
 
 
 if __name__ == '__main__':

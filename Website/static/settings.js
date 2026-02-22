@@ -109,3 +109,40 @@ function showAlert(message, type="success") {
         alertBox.innerHTML = "";
     }, 3000);
 }
+
+function playVoiceDemo()
+{
+  const voice_dropdown = document.getElementById('voice_selection');
+  path = "/audio?source=" + voice_dropdown.value + ".mp3";
+  var snd = new Audio(path);
+  snd.play();
+}
+
+function setThemeColors(primary, secondary, accent, bg)
+{
+  // Get the root element
+  var r = document.querySelector(':root');
+
+  r.style.setProperty('--identity-primary', primary);
+  r.style.setProperty('--identity-secondary', secondary);
+  r.style.setProperty('--identity-accent', accent);
+
+  var b = document.querySelector('body');
+
+  b.style.setProperty('background-image', 'url(' + bg + ')');
+}
+
+function setBlueTheme()
+{
+  setThemeColors('#004386ff', '#00a6ffff', '#001e2dff', 'https://images.unsplash.com/photo-1501696461415-6bd6660c6742?q=80&w=1674&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D');
+}
+
+function setGreenTheme()
+{
+  setThemeColors('#008650', '#00ff99', '#002d1b', 'https://images.unsplash.com/photo-1618904387125-a6d6aade3018?q=80&w=1740&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D');
+}
+
+function setRedTheme()
+{
+  setThemeColors('#f06161', '#f88888', '#601a1a', 'https://images.unsplash.com/photo-1479030574009-1e48577746e8?q=80&w=2070&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D');
+}
