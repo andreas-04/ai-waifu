@@ -13,7 +13,7 @@ class Settings:
     system_enabled = False
     camera_enabled = False
     screen_enabled = False
-    
+
     track_productivity = True
     track_focus = True
     track_hydration = True
@@ -22,10 +22,27 @@ class Settings:
     selected_voice = "Voice 1"
     blocklist = ""
 
-    def __init__(self):
-        self.system_enabled = True
-        self.camera_enabled = False
-        self.screen_enabled = False
+    def __init__(
+        self,
+        system_enabled=True,
+        camera_enabled=False,
+        screen_enabled=False,
+        track_productivity=True,
+        track_focus=True,
+        track_hydration=True,
+        track_posture=True,
+        selected_voice="Voice 1",
+        blocklist=""
+    ):
+        self.system_enabled = system_enabled
+        self.camera_enabled = camera_enabled
+        self.screen_enabled = screen_enabled
+        self.track_productivity = track_productivity
+        self.track_focus = track_focus
+        self.track_hydration = track_hydration
+        self.track_posture = track_posture
+        self.selected_voice = selected_voice
+        self.blocklist = blocklist
 
     def print(self):
         print(self.system_enabled)
@@ -43,9 +60,9 @@ class Profile:
     user_name = None
     blocklist = ""
 
-    def __init__(self):
-        self.user_name = None
-        self.blocklist = ""
+    def __init__(self, user_name=None, blocklist=""):
+        self.user_name = user_name
+        self.blocklist = blocklist
 
     def to_dict(self):
         return self.__dict__
@@ -65,7 +82,7 @@ class Statistics:
 app = Flask(__name__)
 
 user_settings = Settings(True, False, False)
-user_profile = Profile("John Smith", "Software Engineer", "Making Github 2")
+user_profile = Profile("John Smith", "Software Engineer")
 
 # Get the directory where this app.py file is located
 app_dir = os.path.dirname(os.path.abspath(__file__))
@@ -330,8 +347,7 @@ def upload():
         "productivity_label": productivity_label,
         "productivity_score": productivity_score
     })
-user_settings = Settings()
-user_profile = Profile()
+# Keep the initialized settings/profile above; avoid resetting them later.
 
 @app.route('/', methods=['GET'])
 def index():

@@ -8,3 +8,5 @@
 frame.jpg
 text.txt
 results.csv
+models
+*.csv
