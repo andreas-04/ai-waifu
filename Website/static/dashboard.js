@@ -5,7 +5,29 @@ post_dial = null;
 
 document.addEventListener("DOMContentLoaded", function () {
     makeKnobs();
+    loadProductivityScore();
 });
+
+// Listen for classification results from share.js
+window.addEventListener('classificationResult', (event) => {
+    const { productivity_score } = event.detail;
+    if (productivity_score !== undefined && prod_dial) {
+        prod_dial.setValue(productivity_score);
+    }
+});
+
+// Load initial productivity score
+async function loadProductivityScore() {
+    try {
+        const response = await fetch('/get_productivity_score');
+        const data = await response.json();
+        if (data.productivity_score !== undefined && prod_dial) {
+            prod_dial.setValue(data.productivity_score);
+        }
+    } catch (error) {
+        console.error('Error loading productivity score:', error);
+    }
+}
 
 function makeKnobs() {
     prod_dial = createKnob('prod_dial');
@@ -37,5 +59,5 @@ function createKnob(parentDivID) {
     const elem = document.getElementById(parentDivID);
     elem.appendChild(node);
 
-    return node;
+    return knob;
 }

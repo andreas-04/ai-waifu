@@ -32,12 +32,13 @@ async function share() {
       });
       
       const data = await response.json();
-      console.log(`Label: ${data.label}, Probability: ${data.probability}`);
+      console.log(`Label: ${data.label}, Probability: ${data.probability}, Productivity Score: ${data.productivity_score}`);
       
       // Dispatch event so frontend can display the result
       const event = new CustomEvent('classificationResult', { 
-        detail: { label: data.label, probability: data.probability } 
+        detail: { label: data.label, probability: data.probability, productivity_score: data.productivity_score } 
       });
+      
       window.dispatchEvent(event);
     }, "image/jpeg");
 

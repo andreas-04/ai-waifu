@@ -105,6 +105,34 @@ def log_result(label, probability, productivity="unknown"):
         writer = csv.writer(f)
         writer.writerow([timestamp, label, probability, productivity])
 
+def calculate_productivity_score():
+    """Calculate productivity score out of 100 based on logged results"""
+    if not os.path.exists(log_file):
+        return 0
+    
+    productive_count = 0
+    unproductive_count = 0
+    
+    try:
+        with open(log_file, 'r', newline='') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                label = row['Label'].lower()
+                if label == 'productive':
+                    productive_count += 1
+                elif label == 'unproductive':
+                    unproductive_count += 1
+        
+        total_count = productive_count + unproductive_count
+        if total_count == 0:
+            return 0
+        
+        score = (productive_count / total_count) * 100
+        return round(score, 2)
+    except Exception as e:
+        print(f"Error calculating productivity score: {e}")
+        return 0
+
 @app.route("/upload", methods=["POST"])
 def upload():
     image = request.files["image"]
@@ -136,15 +164,25 @@ def upload():
     # Log the result
     log_result(top_label, top_probability)
 
+    # Calculate overall productivity score
+    productivity_score = calculate_productivity_score()
+
     return jsonify({
         "status": "received", 
         "label": top_label, 
-        "probability": float(top_probability)
+        "probability": float(top_probability),
+        "productivity_score": productivity_score
     })
 
 @app.route('/', methods=['GET'])
 def index():
     return render_template('index.html')
+
+@app.route('/get_productivity_score', methods=['GET'])
+def get_productivity_score():
+    """Get the overall productivity score"""
+    score = calculate_productivity_score()
+    return jsonify({"productivity_score": score})
 
 @app.route('/get_settings', methods=['GET'])
 def get_settings():
