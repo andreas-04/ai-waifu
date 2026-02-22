@@ -78,6 +78,12 @@ function connectScoreSocket() {
             let msg;
             try { msg = JSON.parse(event.data); } catch { return; }
 
+            if (msg.type === 'audio') {
+                const audio = new Audio('/static/notification.mp3?t=' + Date.now());
+                audio.play().catch(err => console.warn('Audio play failed:', err));
+                return;
+            }
+
             if (msg.type !== 'score') return;
 
             const posture   = msg.posture   ?? null;

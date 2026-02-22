@@ -60,7 +60,7 @@ def main(
     # ── Start WebSocket / SSE notification server ─────────────────────────────
     notifier = WsNotifier()
     notifier.start()
-    web_notifier.start()
+    web_notifier.start(notifier)
 
     # ── Instantiate and open modules ─────────────────────────────────────────
     posture = hydration = focus = None

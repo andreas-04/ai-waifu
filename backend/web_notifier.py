@@ -15,19 +15,36 @@ Usage
 
 import asyncio
 import json
+import os
 import random
 import threading
+import urllib.request
 from text_to_speech import gen_audio
-from ..Website.app import play_audio
 
 try:
     from aiohttp import ClientSession, WSMsgType, ClientConnectorError
 except ImportError:
     raise SystemExit("aiohttp is required — run: pip install aiohttp")
 
+_HERE = os.path.dirname(os.path.abspath(__file__))
+_STATIC_AUDIO = os.path.normpath(os.path.join(_HERE, "..", "Website", "static", "notification.mp3"))
+
+_notifier = None
+
+def _get_current_voice() -> str:
+    """Fetch the currently selected voice from the Flask settings API."""
+    try:
+        with urllib.request.urlopen("http://localhost:5001/api/settings", timeout=1) as resp:
+            data = json.loads(resp.read())
+            return data.get("selected_voice", "Jessica")
+    except Exception:
+        return "Jessica"
+
 def send_notification(message: str) -> None:
-    gen_audio(message)
-    play_audio(message)
+    voice = _get_current_voice()
+    success = gen_audio(message, voice=voice, output_path=_STATIC_AUDIO)
+    if success and _notifier is not None:
+        _notifier.notify_audio()
 
 def get_distracted_message():
     messages = [
@@ -120,7 +137,8 @@ async def listen_ws(host: str, port: int) -> None:
                         print(data)
                         print()
 
-                        send_notification(message)
+                        if message:
+                            send_notification(message)
                     except json.JSONDecodeError:
                         print(f"[ws/raw] {msg.data}\n")
                 elif msg.type == WSMsgType.ERROR:
@@ -184,5 +202,11 @@ async def run(host: str = "localhost", port: int = 8765, mode: str = "ws") -> No
         print(f"\n❌ Could not connect: {e}")
         print(f"   Is the backend running?  .venv/bin/python backend/main.py")
 
-def start() -> None:
-    threading.Thread(target=run, daemon=True).start()
+def start(notifier=None) -> None:
+    global _notifier
+    _notifier = notifier
+    threading.Thread(
+        target=lambda: asyncio.run(run()),
+        daemon=True,
+        name="WebNotifier",
+    ).start()

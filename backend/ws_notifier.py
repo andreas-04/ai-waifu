@@ -101,6 +101,22 @@ class WsNotifier:
         })
         asyncio.run_coroutine_threadsafe(self._broadcast(payload), self._loop)
 
+    def notify_audio(self) -> None:
+        """
+        Broadcast an audio-play trigger to all connected clients.
+
+        JSON shape
+        ----------
+        {
+          "type":      "audio",
+          "timestamp": 1740192000.123
+        }
+        """
+        if self._loop is None or not self._loop.is_running():
+            return
+        payload = json.dumps({"type": "audio", "timestamp": time.time()})
+        asyncio.run_coroutine_threadsafe(self._broadcast(payload), self._loop)
+
     def notify_scores(
         self,
         posture:   int | None,
