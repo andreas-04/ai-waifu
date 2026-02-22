@@ -82,7 +82,7 @@ class Statistics:
 app = Flask(__name__)
 
 user_settings = Settings(True, False, False)
-user_profile = Profile("John Smith", "Software Engineer")
+user_profile = Profile("John Smith", "Instagram, Facebook, YouTube, Reddit, Twitter, X.com, TikTok, Netflix, Twitch")
 
 # Get the directory where this app.py file is located
 app_dir = os.path.dirname(os.path.abspath(__file__))
@@ -143,36 +143,6 @@ classifier = pipeline(
 
 SESSION_WINDOW_MINUTES = 15
 
-ACTIVITY_LABELS = [
-    "coding",
-    "writing",
-    "research",
-    "documentation",
-    "email",
-    "meeting",
-    "chatting",
-    "browsing",
-    "video",
-    "social media",
-    "gaming",
-    "idle"
-]
-
-PRODUCTIVITY_MAP = {
-    "coding": "productive",
-    "writing": "productive",
-    "research": "productive",
-    "documentation": "productive",
-    "email": "productive",
-    "meeting": "productive",
-    "chatting": "unproductive",
-    "browsing": "unproductive",
-    "video": "unproductive",
-    "social media": "unproductive",
-    "gaming": "unproductive",
-    "idle": "unproductive"
-}
-
 def get_session_window(dt, window_minutes=SESSION_WINDOW_MINUTES):
     window_start = dt.replace(second=0, microsecond=0)
     minutes = (window_start.minute // window_minutes) * window_minutes
@@ -181,15 +151,19 @@ def get_session_window(dt, window_minutes=SESSION_WINDOW_MINUTES):
     session_id = window_start.strftime("%Y%m%d_%H%M")
     return session_id, window_start, window_end
 
+def get_blocklist():
+    raw = ",".join(filter(None, [user_settings.blocklist, user_profile.blocklist]))
+    return [item.strip() for item in raw.split(",") if item.strip()]
+
 def classify_activity(text):
-    result = classifier(
-        text,
-        candidate_labels=ACTIVITY_LABELS
-    )
-    return result['labels'][0], float(result['scores'][0])
+    labels = get_blocklist() + ["other"]
+    result = classifier(text, candidate_labels=labels)
+    return result["labels"][0], float(result["scores"][0])
 
 def activity_to_productivity(activity_label):
-    return PRODUCTIVITY_MAP.get(activity_label, "unproductive")
+    if activity_label in get_blocklist():
+        return "unproductive"
+    return "productive"
 
 def log_detailed_result(activity_label, activity_score, productivity_label, productivity_score, session_id, text_length):
     """Log detailed classification result with timestamp to CSV"""

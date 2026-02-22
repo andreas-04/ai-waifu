@@ -32,11 +32,11 @@ async function share() {
       });
       
       const data = await response.json();
-      console.log(`Label: ${data.label}, Probability: ${data.probability}, Productivity Score: ${data.productivity_score}`);
+      console.log(`activity_label: ${data.activity_label}, activity_score: ${data.activity_score}, productivity_label: ${data.productivity_label}, productivity_score: ${data.productivity_score}`);
       
       // Dispatch event so frontend can display the result
       const event = new CustomEvent('classificationResult', { 
-        detail: { label: data.label, probability: data.probability, productivity_score: data.productivity_score } 
+        detail: { label: data.activity_label, probability: data.activity_score, productivity_label: data.productivity_label, productivity_score: data.productivity_score } 
       });
       
       window.dispatchEvent(event);
