@@ -5,3 +5,7 @@
 *.cpyt
 *.env
 .venv/
+frame.jpg
+text.txt
+*.csv
+models
