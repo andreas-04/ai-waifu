@@ -18,7 +18,7 @@
     <!-- Navbar -->
     <nav class="navbar navbar-expand-lg navbar-light custom-navbar">
       <div class="container-fluid">
-        <a class="navbar-brand" href="{{ url_for('index') }}">
+        <a class="navbar-brand">
           <img src="{{ url_for('static', filename='images/icon.png') }}"
                alt="Icon"
                height="50">
@@ -34,12 +34,17 @@
         <div class="collapse navbar-collapse" id="navbarNav">
           <div class="navbar-nav ms-auto">
 
-            <a class="nav-link"
-              href="#"
-              data-bs-toggle="modal"
-              data-bs-target="#settingsModal">
-              Settings
-            </a>
+          <a class="nav-link p-0"
+            href="#"
+            data-bs-toggle="modal"
+            data-bs-target="#settingsModal">
+
+            <img src="{{ url_for('static', filename='images/settings.png') }}"
+                alt="Settings"
+                height="50"
+                class="settings-icon">
+
+          </a>
           </div>
         </div>
       </div>

@@ -22,12 +22,13 @@ body {
 }
 
 .logging-box {
-    width: 100%;
+    width: 98%;
     border-radius: 10px;
     border: 1px solid;
     border-color: var(--accent-color);
-    background-color: var(--background-color);
+    background-color: var(--page-color);
     resize: none;
+    margin: 0 auto;
 }
 
 .form-switch .form-check-input {
