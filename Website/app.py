@@ -111,7 +111,12 @@ def _stop_vite():
 
 atexit.register(_stop_vite)
 
-user_settings = Settings(False, False, False, selected_voice="Jessica")
+user_settings = Settings(
+    False, False, False,
+    selected_voice="Jessica",
+    blocklist="Youtube, HBO MAX, Netflix",
+    prodlist="Work, Coding, Reading, School, Email",
+)
 user_profile = Profile("John Smith")
 
 # Set by /upload when productivity drops; consumed by the backend via /api/productivity_alert.
@@ -294,9 +299,9 @@ def _score_record(productive: bool):
     if productive:
         _score_productive += 1
 
-def _score_get() -> int:
+def _score_get() -> "int | None":
     if _score_total == 0:
-        return 100  # neutral until data arrives
+        return None  # no data yet
     return round(_score_productive / _score_total * 100)
 
 def _async_log(activity_label, activity_score, productivity_label, session_id):
@@ -340,12 +345,16 @@ def upload():
 
     _last_activity_label = activity_label
     productivity_label = activity_to_productivity(activity_label, activity_score)
-    _score_record(productivity_label == "productive")
+    # Only record frames that were actually classified; skip "unknown" entirely
+    # (returned when no blocklist/prodlist is configured) so they don't inflate
+    # the productive count and push the score toward 100.
+    if activity_label != "unknown":
+        _score_record(productivity_label == "productive")
     productivity_score = _score_get()
 
     # Alert check (every 5s, after 60s grace)
     if upload_request_count >= 60:
-        if _score_total >= 6 and productivity_score < 50:
+        if _score_total >= 6 and productivity_score is not None and productivity_score < 75:
             global _productivity_alert_pending, _productivity_alert_last_sent
             if time.time() - _productivity_alert_last_sent >= PRODUCTIVITY_ALERT_COOLDOWN_S:
                 _productivity_alert_pending = True

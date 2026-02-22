@@ -135,7 +135,7 @@ export function HomePage() {
       setIsRunning(true);
       setGlobalRunning(true);
       setSessionSecs(0);
-      setMetrics({ focus: 0, productivity: 100, hydration: 0, posture: 0 });
+      setMetrics({ focus: 0, productivity: 0, hydration: 0, posture: 0 });
 
       // Always prompt for screen capture — user can cancel if they don't want it
       await startScreenCapture();
