@@ -15,9 +15,11 @@ Run:
 """
 
 import argparse
+import json
 import sys
 import os
 import threading
+import urllib.request
 
 # Allow sibling-package imports (posture/, hydration/)
 _HERE = os.path.dirname(os.path.abspath(__file__))
@@ -36,16 +38,47 @@ from focus_tracker import FocusTracker              # noqa: E402
 from ws_notifier import WsNotifier                  # noqa: E402
 import web_notifier
 
+def _fetch_productivity() -> "int | None":
+    """Fetch the current productivity score from the Flask app (0-100)."""
+    try:
+        with urllib.request.urlopen(
+            "http://localhost:5001/api/productivity_score", timeout=0.5
+        ) as r:
+            return int(float(json.loads(r.read()).get("productivity_score", 0)))
+    except Exception:
+        return None
+
+
+def _consume_productivity_alert() -> bool:
+    """Check and clear the productivity alert flag from the Flask app."""
+    try:
+        with urllib.request.urlopen(
+            "http://localhost:5001/api/productivity_alert", timeout=0.5
+        ) as r:
+            return bool(json.loads(r.read()).get("alert", False))
+    except Exception:
+        return False
+
+
 def _score_reporter(
     posture_mod, hydration_mod, focus_mod,
     notifier, interval: int, stop_evt: threading.Event,
 ) -> None:
     """Broadcast a score snapshot every *interval* seconds until stopped."""
     while not stop_evt.wait(interval):
-        p = posture_mod.get_score()   if posture_mod   else None
-        h = hydration_mod.get_score() if hydration_mod else None
-        f = focus_mod.get_score()     if focus_mod     else None
-        notifier.notify_scores(p, h, f)
+        p    = posture_mod.get_score()   if posture_mod   else None
+        h    = hydration_mod.get_score() if hydration_mod else None
+        f    = focus_mod.get_score()     if focus_mod     else None
+        prod = _fetch_productivity()
+        notifier.notify_scores(p, h, f, prod)
+
+        if _consume_productivity_alert():
+            notifier.notify(
+                module="productivity",
+                level="warning",
+                simple="Low Productivity",
+                detail="⚠️  Productivity has dropped below 50% in the last 30 seconds.",
+            )
 
 
 def main(

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Play, Square, Brain, Zap, Droplets, Activity } from "lucide-react";
+import { Play, Square, Brain, Zap, Droplets, Activity, Monitor } from "lucide-react";
 import { MetricCard } from "./MetricCard";
 import { TerminalLog } from "./TerminalLog";
 import { useAppContext } from "./RootLayout";
@@ -44,6 +44,9 @@ export function HomePage() {
   const { setIsRunning: setGlobalRunning } = useAppContext();
   const [isRunning, setIsRunning] = useState(false);
   const [disabledMsg, setDisabledMsg] = useState<string | null>(null);
+  const [screenSharing, setScreenSharing] = useState(false);
+  const screenStreamRef = useRef<MediaStream | null>(null);
+  const screenIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [metrics, setMetrics] = useState<Metrics>({
     focus: 0,
     productivity: 0,
@@ -68,9 +71,57 @@ export function HomePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const stopScreenCapture = useCallback(() => {
+    if (screenIntervalRef.current !== null) {
+      clearInterval(screenIntervalRef.current);
+      screenIntervalRef.current = null;
+    }
+    if (screenStreamRef.current) {
+      screenStreamRef.current.getTracks().forEach((t) => t.stop());
+      screenStreamRef.current = null;
+    }
+    setScreenSharing(false);
+  }, []);
+
+  const startScreenCapture = useCallback(async () => {
+    try {
+      const mediaStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+      screenStreamRef.current = mediaStream;
+
+      // If the user stops sharing via the browser's own UI, clean up
+      mediaStream.getVideoTracks()[0].addEventListener("ended", stopScreenCapture);
+
+      const video = document.createElement("video");
+      video.srcObject = mediaStream;
+      await video.play();
+
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d")!;
+
+      screenIntervalRef.current = setInterval(() => {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        ctx.drawImage(video, 0, 0);
+        canvas.toBlob(async (blob) => {
+          if (!blob || blob.size < 1024) return;  // skip empty / truncated frames
+          const form = new FormData();
+          form.append("image", blob);
+          try {
+            await fetch("/upload", { method: "POST", body: form });
+          } catch { /* Flask unreachable — skip frame */ }
+        }, "image/jpeg");
+      }, 1000);
+
+      setScreenSharing(true);
+    } catch {
+      // User cancelled the picker or permission denied — session continues without screen capture
+      setScreenSharing(false);
+    }
+  }, [stopScreenCapture]);
+
   const handleToggle = useCallback(async () => {
     if (!isRunning) {
-      // Start backend subprocess then update UI
+      // Start backend subprocess
       try {
         const res = await fetch("/api/backend/start", { method: "POST" });
         const data = await res.json();
@@ -80,12 +131,17 @@ export function HomePage() {
           return;
         }
       } catch { /* backend unreachable */ }
+
       setIsRunning(true);
       setGlobalRunning(true);
       setSessionSecs(0);
-      setMetrics({ focus: 0, productivity: 0, hydration: 0, posture: 0 });
+      setMetrics({ focus: 0, productivity: 100, hydration: 0, posture: 0 });
+
+      // Always prompt for screen capture — user can cancel if they don't want it
+      await startScreenCapture();
     } else {
-      // Stop backend subprocess then clear UI
+      // Stop screen capture first, then backend
+      stopScreenCapture();
       try {
         await fetch("/api/backend/stop", { method: "POST" });
       } catch { /* backend unreachable */ }
@@ -93,14 +149,17 @@ export function HomePage() {
       setGlobalRunning(false);
       setMetrics({ focus: 0, productivity: 0, hydration: 0, posture: 0 });
     }
-  }, [isRunning, setGlobalRunning]);
+  }, [isRunning, setGlobalRunning, startScreenCapture, stopScreenCapture]);
 
   // Live scores from WsNotifier — productivity is the mean of the 3 backend scores
   useScoreSocket({
     enabled: isRunning,
-    onScore: ({ focus, hydration, posture }) => {
-      const productivity = Math.round((focus + hydration + posture) / 3);
-      setMetrics({ focus, hydration, posture, productivity });
+    onScore: ({ focus, hydration, posture, productivity }) => {
+      const prod =
+        productivity !== null
+          ? productivity
+          : Math.round((focus + hydration + posture) / 3);
+      setMetrics({ focus, hydration, posture, productivity: prod });
     },
     onLog: (log) => setLogs((prev) => [...prev, log]),
     onAudio: () => {
@@ -324,6 +383,30 @@ export function HomePage() {
               }}
             >
               {overallScore}
+            </span>
+          </motion.div>
+        )}
+
+        {/* Screen sharing indicator */}
+        {isRunning && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            onClick={!screenSharing ? startScreenCapture : undefined}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              background: screenSharing ? "rgba(167,139,250,0.08)" : "rgba(255,255,255,0.04)",
+              border: screenSharing ? "1px solid rgba(167,139,250,0.25)" : "1px solid rgba(255,255,255,0.08)",
+              borderRadius: 999,
+              padding: "4px 12px 4px 10px",
+              cursor: screenSharing ? "default" : "pointer",
+            }}
+          >
+            <Monitor size={11} strokeWidth={2} style={{ color: screenSharing ? "#A78BFA" : "rgba(250,250,255,0.25)" }} />
+            <span style={{ fontSize: 11, fontFamily: "'Inter', sans-serif", color: screenSharing ? "rgba(167,139,250,0.85)" : "rgba(250,250,255,0.25)" }}>
+              {screenSharing ? "Screen" : "No screen — click to share"}
             </span>
           </motion.div>
         )}

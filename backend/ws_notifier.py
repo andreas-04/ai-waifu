@@ -119,9 +119,10 @@ class WsNotifier:
 
     def notify_scores(
         self,
-        posture:   int | None,
-        hydration: int | None,
-        focus:     int | None,
+        posture:      int | None,
+        hydration:    int | None,
+        focus:        int | None,
+        productivity: int | None = None,
     ) -> None:
         """
         Broadcast a periodic score snapshot to all connected clients.
@@ -139,11 +140,12 @@ class WsNotifier:
         if self._loop is None or not self._loop.is_running():
             return
         payload = json.dumps({
-            "type":      "score",
-            "posture":   posture,
-            "hydration": hydration,
-            "focus":     focus,
-            "timestamp": time.time(),
+            "type":        "score",
+            "posture":     posture,
+            "hydration":   hydration,
+            "focus":       focus,
+            "productivity": productivity,
+            "timestamp":   time.time(),
         })
         asyncio.run_coroutine_threadsafe(self._broadcast(payload), self._loop)
 
