@@ -1,2 +1,7 @@
+*.png
+*.task
+*.pt
+*/__pycache__/
+*.cpyt
+*.env
 .venv/
-.env
