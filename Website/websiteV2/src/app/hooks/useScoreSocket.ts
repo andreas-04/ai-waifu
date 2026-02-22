@@ -4,6 +4,7 @@ export interface ScorePayload {
   focus: number;
   hydration: number;
   posture: number;
+  productivity: number | null;
 }
 
 export interface LogPayload {
@@ -71,9 +72,10 @@ export function useScoreSocket({ onScore, onLog, onAudio, enabled }: UseScoreSoc
         const data = JSON.parse(event.data as string);
         if (data.type === "score") {
           onScoreRef.current({
-            focus:    data.focus    ?? 0,
-            hydration: data.hydration ?? 0,
-            posture:  data.posture  ?? 0,
+            focus:        data.focus        ?? 0,
+            hydration:    data.hydration    ?? 0,
+            posture:      data.posture      ?? 0,
+            productivity: data.productivity ?? null,
           });
         } else if (data.type === "audio") {
           onAudioRef.current?.();

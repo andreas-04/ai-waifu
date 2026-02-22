@@ -60,6 +60,18 @@ def get_distracted_message():
 
     return random.choice(messages)
 
+def get_low_productivity_message():
+    messages = [
+        "Your productivity score has dropped. Try closing distracting tabs and refocusing on your main task.",
+        "Productivity dip detected! Take a quick breath, then get back to what matters most.",
+        "Looks like you've been off-task for a while. Time to refocus and make the most of your session!",
+        "Productivity check! Consider putting on some focus music and tackling your next priority.",
+        "You're capable of more! Close those distractions and push through the next stretch.",
+        "Your screen activity suggests low productivity. Let's get back on track — you've got this!",
+    ]
+
+    return random.choice(messages)
+
 def get_bad_posture_message():
     messages = [
         "Time to check your posture! Sit up straight and align your spine.",
@@ -134,6 +146,8 @@ async def listen_ws(host: str, port: int) -> None:
                                 message = get_drink_water_message()
                             elif data["module"] == "focus" and data["level"] == "warning":
                                 message = get_distracted_message()
+                            elif data["module"] == "productivity" and data["level"] == "warning":
+                                message = get_low_productivity_message()
                         print(data)
                         print()
 

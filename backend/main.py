@@ -15,9 +15,12 @@ Run:
 """
 
 import argparse
+import json
 import sys
 import os
 import threading
+import time
+import urllib.request
 
 # Allow sibling-package imports (posture/, hydration/)
 _HERE = os.path.dirname(os.path.abspath(__file__))
@@ -36,16 +39,73 @@ from focus_tracker import FocusTracker              # noqa: E402
 from ws_notifier import WsNotifier                  # noqa: E402
 import web_notifier
 
+def _fetch_productivity() -> "int | None":
+    """Fetch the current productivity score from the Flask app (0-100)."""
+    try:
+        with urllib.request.urlopen(
+            "http://localhost:5001/api/productivity_score", timeout=0.5
+        ) as r:
+            return int(float(json.loads(r.read()).get("productivity_score", 0)))
+    except Exception:
+        return None
+
+
+def _consume_productivity_alert() -> bool:
+    """Check and clear the productivity alert flag from the Flask app."""
+    try:
+        with urllib.request.urlopen(
+            "http://localhost:5001/api/productivity_alert", timeout=0.5
+        ) as r:
+            return bool(json.loads(r.read()).get("alert", False))
+    except Exception:
+        return False
+
+
 def _score_reporter(
     posture_mod, hydration_mod, focus_mod,
     notifier, interval: int, stop_evt: threading.Event,
 ) -> None:
     """Broadcast a score snapshot every *interval* seconds until stopped."""
+    _alert_last_sent: float = 0.0
+    _ALERT_COOLDOWN = 300.0  # 5 minutes
+
     while not stop_evt.wait(interval):
         p = posture_mod.get_score()   if posture_mod   else None
         h = hydration_mod.get_score() if hydration_mod else None
         f = focus_mod.get_score()     if focus_mod     else None
-        notifier.notify_scores(p, h, f)
+
+        # ── Composite productivity: focus 50 %, posture 30 %, hydration 20 % ──
+        # Only includes signals from modules that are actually running (not None).
+        # Weights are re-normalised so missing modules don't drag the score down.
+        _weights = [(f, 0.50), (p, 0.30), (h, 0.20)]
+        _available = [(v, w) for v, w in _weights if v is not None]
+        if _available:
+            _total_w = sum(w for _, w in _available)
+            prod = round(sum(v * w for v, w in _available) / _total_w)
+        else:
+            prod = None
+
+        # ── Optional CLIP screen-activity modifier (±10 pts) ─────────────────
+        # Applied only when the Flask classifier has seen enough frames and the
+        # user has configured a blocklist / prodlist. Returns None otherwise.
+        screen = _fetch_productivity()
+        if screen is not None and prod is not None:
+            modifier = round((screen - 50) * 0.20)   # maps 0–100 → −10…+10
+            prod = max(0, min(100, prod + modifier))
+
+        notifier.notify_scores(p, h, f, prod)
+
+        # ── Low-productivity alert (5-minute cooldown) ────────────────────────
+        if prod is not None and prod < 50:
+            now = time.monotonic()
+            if now - _alert_last_sent >= _ALERT_COOLDOWN:
+                _alert_last_sent = now
+                notifier.notify(
+                    module="productivity",
+                    level="warning",
+                    simple="Low Productivity",
+                    detail="⚠️  Productivity has dropped below 50%.",
+                )
 
 
 def main(
