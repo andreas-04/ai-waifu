@@ -13,7 +13,7 @@
         <div class="col-md-6">
           <div class="screen-half">
             <h1>Settings</h1>
-            <form method="POST" action="{{ url_for('update_settings') }}">
+            <form method="POST" id="settings_form" action="{{ url_for('update_settings') }}">
 
               <div class="form-check form-switch">
                 <input class="form-check-input" type="checkbox"
@@ -52,7 +52,7 @@
               </div>
 
               <!-- Submit Button -->
-              <button type="submit" class="btn btn-primary mt-3">Save</button>
+              <button type="button" id="settings_button" class="btn btn-primary mt-3">Save</button>
 
             </form>
           </div>
@@ -62,7 +62,7 @@
         <div class="col-md-6">
           <div class="screen-half">
             <h1>Profile</h1>
-            <form method="POST" action="{{ url_for('update_profile') }}">
+            <form method="POST" id="profile_form" action="{{ url_for('update_profile') }}">
               <div class="form-group">
                 <label for="name">Name</label>
                 <input type="text" class="form-control" 
@@ -94,7 +94,7 @@
 
               <div class="form-group">
                 <div class="col-md-6">
-                  <button type="submit" class="btn btn-primary">Save</button>
+                  <button type="button" id="profile_button" class="btn btn-primary">Save</button>
                 </div>
               </div>
               <br>
@@ -105,4 +105,8 @@
       </div>
     </div>
 
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='settings.js') }}"></script>
 {% endblock %}

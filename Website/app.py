@@ -52,20 +52,22 @@ def index():
 
 @app.route('/update_settings', methods=['POST'])
 def update_settings():
+    print(request.data)
     user_settings.system_enabled = request.form.get("system_enabled")
     user_settings.camera_enabled = request.form.get("camera_enabled")
     user_settings.screen_enabled = request.form.get("screen_enabled")
 
-    return redirect(url_for("settings"))
+    return "", 200
 
 
 @app.route('/update_profile', methods=['POST'])
 def update_profile():
+    print(request.data)
     user_profile.user_name = request.form.get("name")
     user_profile.user_job = request.form.get("job_title")
     user_profile.user_project = request.form.get("project_desc")
 
-    return redirect(url_for("settings"))
+    return "", 200
 
 if __name__ == '__main__':
     app.run()
