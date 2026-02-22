@@ -45,7 +45,7 @@ async function share() {
 }
 
 // Get the input element and the status text element
-const toggleInput = document.getElementById('screenToggle');
+const toggleInput = document.getElementById('productivityToggle');
 
 function turnOffFunction() {
   // Stop the interval
