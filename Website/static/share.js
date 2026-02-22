@@ -63,13 +63,13 @@ function turnOffFunction() {
 }
 
 // Add an event listener for the 'change' event
-toggleInput.addEventListener('change', () => {
-  if (toggleInput.checked) {
-    const categories = ["instagram", "other"];
-    const interval = 3000;
+    toggleInput.addEventListener('change', () => {
+      if (toggleInput.checked) {
+        const categories = ["instagram", "other"];
+        const interval = 3000;
     share(categories, interval)
-  } else {
+      } else {
     // Optional: Run this function when the toggle is 'off' (unchecked)
-    turnOffFunction();
+        turnOffFunction();
   }
 });

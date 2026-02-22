@@ -1,5 +1,4 @@
-from flask import Flask, request, render_template, redirect, url_for
-from flask import Flask, request, render_template, jsonify
+from flask import Flask, request, render_template, redirect, url_for, jsonify
 import cv2
 import pytesseract
 import os
@@ -8,7 +7,23 @@ import json
 from datetime import datetime
 from transformers import pipeline
 
+
+class Settings:
+    def __init__(self, system, camera, screen):
+        self.system_enabled = system
+        self.camera_enabled = camera
+        self.screen_enabled = screen
+
+class Profile:
+    def __init__(self, name, job, project):
+        self.user_name = name
+        self.user_job = job
+        self.user_project = project
+
 app = Flask(__name__)
+
+user_settings = Settings(False, False, False)
+user_profile = Profile("John Smith", "Software Engineer", "Making Github 2")
 
 # Get the directory where this app.py file is located
 app_dir = os.path.dirname(os.path.abspath(__file__))
@@ -27,7 +42,7 @@ if not os.path.exists(log_file):
 # create an application init to download the classifier
 classifier_path = os.path.join(models_dir, "productivity_classifier")
 if not os.path.exists(classifier_path):
-    print("File not found. Downloading classifier")
+    print("Model not found. Downloading classifier model.")
     classifier = pipeline(
         "zero-shot-classification",
         model="facebook/bart-large-mnli"
@@ -86,31 +101,6 @@ def upload():
     log_result(top_label, top_probability)
 
     return jsonify({"status": "received", "label": top_label, "probability": float(top_probability)})
-
-class Settings:
-    system_enabled = False
-    camera_enabled = False
-    screen_enabled = False
-
-    def __init__(self, system, camera, screen):
-        system_enabled = system
-        camera_enabled = camera
-        screen_enabled = screen
-
-class Profile:
-    user_name = None
-    user_job = None
-    user_project = None
-
-    def __init__(self, name, job, project):
-        user_name = name
-        user_job = job
-        user_project = project
-
-app = Flask(__name__)
-
-user_settings = Settings(False, False, False)
-user_profile = Profile("John Smith", "Software Engineer", "Making Github 2")
 
 @app.route('/settings', methods=['GET', 'POST'])
 def settings():
