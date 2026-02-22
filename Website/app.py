@@ -25,18 +25,18 @@ app = Flask(__name__)
 user_settings = Settings(False, False, False)
 user_profile = Profile("John Smith", "Software Engineer", "Making Github 2")
 
-@app.route('/', methods=['GET', 'POST'])
-def index():
+@app.route('/settings', methods=['GET', 'POST'])
+def settings():
     global user_settings, user_profile
 
     return render_template(
-        "index.html", 
+        "settings.html", 
         user_settings=user_settings,
         user_profile=user_profile)
 
-@app.route('/report', methods=['GET'])
-def report():
-    return render_template('report.html')
+@app.route('/', methods=['GET'])
+def index():
+    return render_template('index.html')
 
 @app.route('/update_settings', methods=['POST'])
 def update_settings():

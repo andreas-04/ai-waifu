@@ -5,6 +5,7 @@
 
 {% block content %}
 
+
   <!-- The content of the page -->
     <div class="container-fluid mt-4">
       <div class="row">
@@ -12,94 +13,27 @@
         <!-- Left side -->
         <div class="col-md-6">
           <div class="screen-half">
-            <h1>Settings</h1>
-            <form method="POST" action="{{ url_for('update_settings') }}">
+            <h1>Statistics</h1>
 
-              <div class="form-check form-switch">
-                <input class="form-check-input" type="checkbox"
-                      role="switch"
-                      id="systemToggle"
-                      name="system_enabled"
-                      value="1"
-                      {% if user_settings.system_enabled %}checked{% endif %}>
-                <label class="form-check-label" for="systemToggle">
-                  System Enabled
-                </label>
-              </div>
+            <!-- Average Focus -->
+            <div class="form-check form-switch">
+                <label for="avg_focus">Average Focus</label>
+                <input type="number" class="form-control" id="avg_focus" placeholder="Average Focus" disabled>
+            </div>
+            <br>
 
-              <div class="form-check form-switch">
-                <input class="form-check-input" type="checkbox"
-                      role="switch"
-                      id="cameraToggle"
-                      name="camera_enabled"
-                      value="1"
-                      {% if user_settings.camera_enabled %}checked{% endif %}>
-                <label class="form-check-label" for="cameraToggle">
-                  Camera Access
-                </label>
-              </div>
-
-              <div class="form-check form-switch">
-                <input class="form-check-input" type="checkbox"
-                      role="switch"
-                      id="screenToggle"
-                      name="screen_enabled"
-                      value="1"
-                      {% if user_settings.screen_enabled %}checked{% endif %}>
-                <label class="form-check-label" for="screenToggle">
-                  Screen Access
-                </label>
-              </div>
-
-              <!-- Submit Button -->
-              <button type="submit" class="btn btn-primary mt-3">Save</button>
-
-            </form>
+            <!-- Average Focus -->
+            <div class="form-check form-switch">
+                <label for="avg_posture">Average Posture</label>
+                <input type="number" class="form-control" id="avg_posture" placeholder="Average Posture" disabled>
+            </div>
           </div>
         </div>
 
         <!-- Right side -->
         <div class="col-md-6">
           <div class="screen-half">
-            <h1>Profile</h1>
-            <form method="POST" action="{{ url_for('update_profile') }}">
-              <div class="form-group">
-                <label for="name">Name</label>
-                <input type="text" class="form-control" 
-                  name="name" id="name" 
-                  placeholder="John Smith" 
-                  value="{{ user_profile.user_name }}">
-              </div>
-              <br>
-
-              <div class="form-group">
-                <label for="job_title">Job Title</label>
-                <input type="text" class="form-control" 
-                  name="job_title" 
-                  id="job_title" 
-                  placeholder="Software Engineer",
-                  value="{{ user_profile.user_job }}">
-              </div>
-              <br>
-
-              <div class="form-group">
-                <label for="project_desc">Project Description</label>
-                <input type="text" class="form-control" 
-                  name="project_desc" 
-                  id="project_desc" 
-                  placeholder="Develop Github 2"
-                  value="{{ user_profile.user_project }}">
-              </div>
-              <br>
-
-              <div class="form-group">
-                <div class="col-md-6">
-                  <button type="submit" class="btn btn-primary">Save</button>
-                </div>
-              </div>
-              <br>
-
-            </form>
+            <h1>Work Score</h1>
           </div>
         </div>
       </div>
