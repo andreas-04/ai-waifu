@@ -13,57 +13,71 @@ Usage
     python test_ws_client.py [--host HOST] [--port PORT] [--mode ws|sse|both]
 """
 
-import argparse
 import asyncio
 import json
-from datetime import datetime
+import random
+import threading
+from text_to_speech import gen_audio
+from ..Website.app import play_audio
 
 try:
     from aiohttp import ClientSession, WSMsgType, ClientConnectorError
 except ImportError:
     raise SystemExit("aiohttp is required — run: pip install aiohttp")
 
-# ── Colour helpers (no extra deps) ───────────────────────────────────────────
-_RESET  = "\033[0m"
-_BOLD   = "\033[1m"
-_DIM    = "\033[2m"
-_COLORS = {
-    "info":    "\033[36m",   # cyan
-    "warning": "\033[33m",   # yellow
-    "alert":   "\033[31m",   # red
-}
-_MODULE_COLORS = {
-    "posture":   "\033[35m",  # magenta
-    "hydration": "\033[34m",  # blue
-    "focus":     "\033[32m",  # green
-}
-_TRANSPORT_COLORS = {
-    "ws":  "\033[32m",   # green
-    "sse": "\033[34m",   # blue
-}
+def send_notification(message: str) -> None:
+    gen_audio(message)
+    play_audio(message)
 
+def get_distracted_message():
+    messages = [
+        "Woah there! Make sure to stay focused and avoid distractions. You've got this!",
+        "Time to buckle down and get some work done! Stay focused and keep those distractions at bay.",
+        "Focus mode activated! Avoid distractions and keep your eyes on the prize. You can do it!",
+        "Distraction alert! Take a deep breath, refocus, and get back to work. Go get 'em!",
+        "Stay on track! Avoid distractions and keep pushing forward. You've got the power to succeed!",
+        "Focus up! Distractions can wait, but your goals can't. Stay determined and keep moving forward!",
+        "Distraction-free zone! Take a moment to refocus and get back to work. You've got this!",
+        "Time to get in the zone! Avoid distractions and keep your mind on the task at hand.",
+    ]
 
-def _format(msg: dict, transport: str = "ws") -> str:
-    level   = msg.get("level", "info")
-    module  = msg.get("module", "?")
-    simple  = msg.get("simple", "")
-    detail  = msg.get("detail", "")
-    ts      = msg.get("timestamp", 0)
+    return random.choice(messages)
 
-    time_str   = datetime.fromtimestamp(ts).strftime("%H:%M:%S.%f")[:-3]
-    lvl_color  = _COLORS.get(level, "")
-    mod_color  = _MODULE_COLORS.get(module, "")
-    t_color    = _TRANSPORT_COLORS.get(transport, "")
+def get_bad_posture_message():
+    messages = [
+        "Time to check your posture! Sit up straight and align your spine.",
+        "Posture check! Adjust your chair and sit tall for better focus.",
+        "Don't forget to maintain good posture! Your back will thank you.",
+        "Posture reminder! Keep your shoulders relaxed and your back straight.",
+        "Sit up straight! Good posture can boost your energy and focus.",
+        "Posture check! Make sure you're sitting comfortably and upright.",
+        "Remember to maintain good posture for better health and productivity!",
+        "Posture alert! Take a moment to adjust your seating position.",
+        "Keep that posture in check! A straight back can improve circulation.",
+        "Posture reminder! Align your head, neck, and spine for comfort."
+    ]
 
-    return (
-        f"{_BOLD}{time_str}{_RESET}  "
-        f"{t_color}[{transport:>3}]{_RESET}  "
-        f"{mod_color}[{module:>9}]{_RESET}  "
-        f"{lvl_color}{level:<7}{_RESET}  "
-        f"{_BOLD}{simple}{_RESET}\n"
-        f"           {_DIM}{detail}{_RESET}"
-    )
+    return random.choice(messages)
 
+def get_drink_water_message():
+    messages = [
+        "Time to drink some water! Stay hydrated!",
+        "Don't forget to take a sip of water! Your body will thank you!",
+        "Hydration check! Grab a glass of water and refresh yourself!",
+        "Water break! Take a moment to hydrate and boost your focus!",
+        "Stay refreshed! Drink some water to keep your mind sharp!",
+        "Your body's asking for water! Take a sip now.",
+        "Don't forget to drink water — your future self will thank you!",
+        "Hydration check! When did you last drink water?",
+        "A little water goes a long way. Grab a glass!",
+        "Stay refreshed! Have you had some water recently?",
+        "Water break! Your body will love you for it.",
+        "Keep your energy up — drink some water.",
+        "H2O time! Let's keep that hydration up.",
+        "Remember, water is essential. Have you had enough today?"
+    ]
+
+    return random.choice(messages)
 
 # ── WebSocket listener ────────────────────────────────────────────────────────
 
@@ -94,8 +108,19 @@ async def listen_ws(host: str, port: int) -> None:
                 if msg.type == WSMsgType.TEXT:
                     try:
                         data = json.loads(msg.data)
-                        print(_format(data, "ws"))
+
+                        message = ""
+                        if "module" in data:
+                            if data["module"] == "posture" and data["level"] == "warning":
+                                message = get_bad_posture_message()
+                            elif data["module"] == "hydration" and data["level"] == "warning":
+                                message = get_drink_water_message()
+                            elif data["module"] == "focus" and data["level"] == "warning":
+                                message = get_distracted_message()
+                        print(data)
                         print()
+
+                        send_notification(message)
                     except json.JSONDecodeError:
                         print(f"[ws/raw] {msg.data}\n")
                 elif msg.type == WSMsgType.ERROR:
@@ -136,7 +161,7 @@ async def listen_sse(host: str, port: int) -> None:
                             payload = line[len("data:"):].strip()
                             try:
                                 data = json.loads(payload)
-                                print(_format(data, "sse"))
+                                print(data)
                                 print()
                             except json.JSONDecodeError:
                                 print(f"[sse/raw] {payload}\n")
@@ -144,7 +169,7 @@ async def listen_sse(host: str, port: int) -> None:
 
 # ── Entry point ───────────────────────────────────────────────────────────────
 
-async def run(host: str, port: int, mode: str) -> None:
+async def run(host: str = "localhost", port: int = 8765, mode: str = "ws") -> None:
     try:
         if mode == "ws":
             await listen_ws(host, port)
@@ -159,24 +184,5 @@ async def run(host: str, port: int, mode: str) -> None:
         print(f"\n❌ Could not connect: {e}")
         print(f"   Is the backend running?  .venv/bin/python backend/main.py")
 
-
-def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Test client for AI-Waifu notifications"
-    )
-    parser.add_argument("--host", default="localhost", help="Server host (default: localhost)")
-    parser.add_argument("--port", type=int, default=8765,  help="Server port (default: 8765)")
-    parser.add_argument(
-        "--mode", choices=["ws", "sse", "both"], default="ws",
-        help="Transport to use: ws (WebSocket), sse (HTTP SSE), both (default: ws)",
-    )
-    args = parser.parse_args()
-
-    try:
-        asyncio.run(run(args.host, args.port, args.mode))
-    except KeyboardInterrupt:
-        print("\n👋 Disconnected.")
-
-
-if __name__ == "__main__":
-    main()
+def start() -> None:
+    threading.Thread(target=run, daemon=True).start()
