@@ -2,6 +2,9 @@ document.addEventListener("DOMContentLoaded", function () {
     loadValues();
 });
 
+document.getElementById('settingsModal')
+  .addEventListener('shown.bs.modal', loadValues);
+
 const settings_button = document.getElementById('settings_button');
 
 settings_button.addEventListener('click', async _ => {

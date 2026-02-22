@@ -33,13 +33,11 @@
 
         <div class="collapse navbar-collapse" id="navbarNav">
           <div class="navbar-nav ms-auto">
-            <a class="nav-link {% if request.endpoint == 'index' %}active{% endif %}"
-               href="{{ url_for('index') }}">
-              Home
-            </a>
 
-            <a class="nav-link {% if request.endpoint == 'settings' %}active{% endif %}"
-               href="{{ url_for('settings') }}">
+            <a class="nav-link"
+              href="#"
+              data-bs-toggle="modal"
+              data-bs-target="#settingsModal">
               Settings
             </a>
           </div>
