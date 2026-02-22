@@ -1,7 +1,7 @@
 let intervalId = null;
 let stream = null;
 
-async function share() {
+async function share(categories) {
   const mediaStream =
     await navigator.mediaDevices.getDisplayMedia({
       video: true
@@ -25,11 +25,21 @@ async function share() {
     canvas.toBlob(async blob => {
       const form = new FormData();
       form.append("image", blob);
+      form.append("categories", JSON.stringify(categories))
 
-      await fetch("/upload", {
+      const response = await fetch("/upload", {
         method: "POST",
         body: form
       });
+      
+      const data = await response.json();
+      console.log(`Label: ${data.label}, Probability: ${data.probability}`);
+      
+      // Dispatch event so frontend can display the result
+      const event = new CustomEvent('classificationResult', { 
+        detail: { label: data.label, probability: data.probability } 
+      });
+      window.dispatchEvent(event);
     }, "image/jpeg");
 
   }, 3000);
@@ -55,7 +65,7 @@ function turnOffFunction() {
 // Add an event listener for the 'change' event
 toggleInput.addEventListener('change', () => {
   if (toggleInput.checked) {
-    share()
+    share(["instagram", "other"])
   } else {
     // Optional: Run this function when the toggle is 'off' (unchecked)
     turnOffFunction();
