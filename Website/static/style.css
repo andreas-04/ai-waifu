@@ -71,3 +71,11 @@ input[type="number"] {
     text-align: center;
     margin: 0 auto;
 }
+
+.navbar-title {
+    font-size: 1.5rem;
+    font-weight: bold;
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+}
