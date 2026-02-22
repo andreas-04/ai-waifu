@@ -1,7 +1,7 @@
 let intervalId = null;
 let stream = null;
 
-async function share(categories, interval) {
+async function share() {
   const mediaStream =
     await navigator.mediaDevices.getDisplayMedia({
       video: true
@@ -25,7 +25,6 @@ async function share(categories, interval) {
     canvas.toBlob(async blob => {
       const form = new FormData();
       form.append("image", blob);
-      form.append("categories", JSON.stringify(categories))
 
       const response = await fetch("/upload", {
         method: "POST",
@@ -42,7 +41,7 @@ async function share(categories, interval) {
       window.dispatchEvent(event);
     }, "image/jpeg");
 
-  }, interval);
+  }, 3000);
 }
 
 // Get the input element and the status text element
@@ -65,9 +64,7 @@ function turnOffFunction() {
 // Add an event listener for the 'change' event
     toggleInput.addEventListener('change', () => {
       if (toggleInput.checked) {
-        const categories = ["instagram", "other"];
-        const interval = 3000;
-    share(categories, interval)
+        share()
       } else {
     // Optional: Run this function when the toggle is 'off' (unchecked)
         turnOffFunction();

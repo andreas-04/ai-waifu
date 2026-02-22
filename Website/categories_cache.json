@@ -1,0 +1,18 @@
+{
+  "Software Engineer|Making Github 2": {
+    "productive": [
+      "vscode",
+      "github",
+      "documentation",
+      "slack",
+      "email"
+    ],
+    "unproductive": [
+      "instagram",
+      "youtube",
+      "twitter",
+      "tiktok",
+      "reddit"
+    ]
+  }
+}
