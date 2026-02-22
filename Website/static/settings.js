@@ -1,3 +1,7 @@
+document.addEventListener("DOMContentLoaded", function () {
+    loadValues();
+});
+
 const settings_button = document.getElementById('settings_button');
 
 settings_button.addEventListener('click', async _ => {
@@ -36,10 +40,28 @@ function get_form_as_json(form_name){
     formElements.forEach(el => {
         if (el.type === 'checkbox') {
             json[el.name] = el.checked;
-        } else if (el.type === 'text' || el.type === 'email' || el.type === 'password') {
+        } else if (el.type === 'text' || el.type === 'email' || el.type === 'password' || el.tagName ==='SELECT') {
             json[el.name] = el.value;
         }
     });
 
     return JSON.stringify(json);
+}
+
+function loadValues()
+{
+    fetch("/get_settings",
+    {
+        method: "GET"
+      })
+        .then((response) => response.json())
+        .then((json) => {
+            console.log(json);  // log it here instead
+            document.getElementById("systemToggle").checked = json.system_enabled;
+            document.getElementById("productivityToggle").checked = json.track_productivity;
+            document.getElementById("focusToggle").checked = json.track_focus;
+            document.getElementById("hydrationToggle").checked = json.track_hydration;
+            document.getElementById("postureToggle").checked = json.track_posture;
+            document.getElementById("voice_selection").value = json.selected_voice;
+        });
 }
